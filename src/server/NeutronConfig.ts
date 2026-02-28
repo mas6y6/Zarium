@@ -49,9 +49,9 @@ export class NeutronConfig {
             return current as T;
         };
 
-        this.port = getPath<number>("port", this.port);
-        this.debug = getPath<boolean>("debug", this.debug);
-        this.host = getPath<string>("host", this.host);
+        this.port = getPath<number>("server.port", this.port);
+        this.debug = getPath<boolean>("server.debug", this.debug);
+        this.host = getPath<string>("server.host", this.host);
 
         this.data_folder = getPath<string>("neutron.data_folder", this.data_folder);
 

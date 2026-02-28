@@ -7,16 +7,17 @@
   "scripts": {
     "build": "npm run build-ts && npm run copy-assets",
     "build-ts": "tsc",
-    "copy-assets": "cpx \"src/desktop_client/{frontend,assets}/**/*\" dist/desktop_client",
+    "copy-assets": "cpx \"src/desktop_client/{frontend,assets}/**/*\" dist/desktop_client && cpx \"src/server/{templates,assets,templates}/**/*\" dist/server",
     "start:client": "npm run build && electron ./dist/run-client.js",
     "start:server": "npm run build && node ./dist/run-server.js",
     "test:server": "npm run build && node ./dist/run-server.js --config test/config.yml",
     "clean": "rimraf dist"
   },
   "devDependencies": {
+    "@types/ejs": "^3.1.5",
     "@types/express": "^5.0.6",
     "@types/js-yaml": "^4.0.9",
-    "@types/node": "^25.3.1",
+    "@types/node": "^25.3.2",
     "@types/pg": "^8.16.0",
     "@types/sqlite3": "^3.1.11",
     "@types/ws": "^8.18.1",
@@ -27,14 +28,17 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "ejs": "^4.0.1",
     "express": "^5.2.1",
     "js-yaml": "^4.1.1",
     "keytar": "^7.9.0",
-    "mysql2": "^3.9.7",
+    "mysql2": "^3.18.2",
     "nexe": "^5.0.0-beta.4",
     "node-notifier": "^10.0.1",
     "pg": "^8.19.0",
+    "reflect-metadata": "^0.2.2",
     "sqlite3": "^5.1.7",
+    "typeorm": "^0.3.28",
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0",
     "ws": "^8.19.0"

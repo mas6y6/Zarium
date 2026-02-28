@@ -1,30 +1,32 @@
-import express from "express";
+import express, {ErrorRequestHandler, NextFunction} from "express";
 import * as http from "node:http";
 import * as path from "node:path";
 import * as fs from "fs/promises";
-import yaml from "js-yaml";
 import {NeutronConfig} from "./NeutronConfig";
 import keytar from "keytar";
 import crypto from "crypto";
 import { createLogger } from "./logger";
 import winston from "winston";
 import * as https from "node:https";
-import {NeutronDatabase} from "./database/NeutronDatabase";
-import {PostgresDatabase} from "./database/PostgresDatabase";
-import {SQLiteDatabase} from "./database/SQLiteDatabase";
-import {MySQLDatabase} from "./database/MySQLDatabase";
-import {MariaDBDatabase} from "./database/MariaDBDatabase";
+import {WebSocketServer, WebSocket} from "ws";
+import {IncomingMessage} from "node:http";
+import {Socket} from "node:net";
+import {renderTemplate} from "./templateRender";
+import {Database} from "./database/Database";
 
 export class NeutronServer {
-    private static instance: NeutronServer;
-    private app!: express.Application;
-    private server!: http.Server;
-    private port: number = 3000;
-    private config!: NeutronConfig;
+    public static instance: NeutronServer;
+    public app!: express.Application;
+    public server!: http.Server;
+    public port: number = 3000;
+    public config!: NeutronConfig;
     public logger!: winston.Logger;
-    public database!: NeutronDatabase;
-    private masterkey!: Buffer;
-    private firststart: boolean = false;
+    public database!: Database;
+    public masterkey!: Buffer;
+    public firstStart: boolean = false;
+    public wss = new WebSocketServer({ noServer: true });
+    public wsRouteHandlers: { [url: string]: (ws: WebSocket, req: IncomingMessage) => void } = {};
+    private superadminKey: string = "";
 
     public static getInstance(): NeutronServer {
         if (!NeutronServer.instance) {
@@ -55,7 +57,7 @@ export class NeutronServer {
             } catch (err) {
                 if ((err as NodeJS.ErrnoException).code === "ENOENT") {
                     await fs.mkdir(dataFolderPath, {recursive: true});
-                    this.firststart = true;
+                    this.firstStart = true;
                 } else {
                     throw err;
                 }
@@ -98,18 +100,7 @@ export class NeutronServer {
             }
         }
 
-        if (this.config.database_type === "postgres") {
-            this.database = new PostgresDatabase();
-        } else if (this.config.database_type === "sqlite" || this.config.database_type === "sqlite3") {
-            this.database = new SQLiteDatabase();
-        } else if (this.config.database_type === "mysql") {
-            this.database = new MySQLDatabase();
-        } else if (this.config.database_type === "mariadb") {
-            this.database = new MariaDBDatabase();
-        } else {
-            throw new Error(`Unsupported database type: ${this.config.database_type}`);
-        }
-
+        this.database = Database.getInstance();
         await this.database.init(this.config);
 
         this.app = express();
@@ -127,15 +118,61 @@ export class NeutronServer {
         } else {
             this.server = http.createServer(this.app);
         }
+
+        this.app.use(express.json());
+        this.app.use(express.urlencoded({ extended: true }));
+        this.app.use('/static', express.static(path.join(__dirname, 'public')));
+
+        this.server.on('upgrade', (request: IncomingMessage, socket: Socket, head: Buffer) => {
+            const handler = request.url ? this.wsRouteHandlers[request.url] : undefined;
+
+            if (!handler) {
+                socket.destroy();
+                return;
+            }
+
+            this.wss.handleUpgrade(request, socket, head, (ws: WebSocket, _req: IncomingMessage) => {
+                handler(ws, request);
+            });
+        });
+
+        const routes = await fs.readdir(path.join(__dirname, "routes"));
+        routes.forEach((file) => {
+            require("./routes/" + file);
+        });
+
+        if (this.firstStart) {
+            this.superadminKey = crypto.randomBytes(12).toString("hex");
+
+            this.logger.info("-------------------------------------------------------");
+            this.logger.info("");
+            this.logger.info("This is the first time that this Neutron server has been started!");
+            this.logger.info("");
+            this.logger.info(`Your superadmin key for this server is: ${this.superadminKey}`);
+            this.logger.info("THIS KEY CANNOT BE USED MORE THAN ONCE!");
+            this.logger.info("");
+            this.logger.info("-------------------------------------------------------");
+        }
     }
 
     public start() {
+        this.app.use(async (req, res, next) => {
+            res.status(404).send(await renderTemplate("error.html"));
+        });
+
         this.server.listen(this.port, this.config.host, () => {
             if (this.config.ssl_enabled) {
-                console.log(`Neutron Server running at https://${this.config.host}:${this.port}`);
+                this.logger.info(`Neutron Server running at https://${this.config.host}:${this.port}`);
             } else {
-                console.log(`Neutron Server running at http://${this.config.host}:${this.port}`);
+                this.logger.info(`Neutron Server running at http://${this.config.host}:${this.port}`);
             }
         });
+    }
+
+    public registerWsRoute(
+        url: string,
+        handler: (ws: WebSocket, req: IncomingMessage) => void
+    ) {
+        this.wsRouteHandlers[url] = handler;
     }
 }

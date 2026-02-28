@@ -1,7 +1,7 @@
+import winston from "winston";
+import DailyRotateFile from "winston-daily-rotate-file";
 import fs from "fs/promises";
 import path from "path";
-import winston from "winston";
-import DailyRotateFile from "winston-daily-rotate-file"; // <- correct import
 
 export interface LoggerOptions {
     level?: string;
@@ -19,33 +19,25 @@ export async function createLogger(options: LoggerOptions = {}): Promise<winston
     const maxFiles = options.maxFiles ?? "14d";
 
     if (enableFile) {
-        try {
-            await fs.mkdir(logsFolder, { recursive: true });
-        } catch (err) {
-            console.error("Failed to create logs folder:", err);
-        }
+        await fs.mkdir(logsFolder, { recursive: true }).catch(() => {});
     }
 
-    const upperCaseLevel = winston.format((info) => {
-        info.level = info.level.toUpperCase();
-        return info;
-    });
-
+    // --- formatter ---
     const formatter = winston.format.combine(
-        upperCaseLevel(),
-        winston.format.timestamp({ format: "HH:mm:ss" }),
-        winston.format.printf(({ timestamp, level, message }) => `[${timestamp}] ${level}: ${message}`)
+        winston.format.timestamp({ format: "HH:mm:ss" }),   // add timestamp
+        winston.format.printf(info => {
+            // fallback values if undefined
+            const ts = info.timestamp ?? new Date().toLocaleTimeString();
+            const lvl = (info.level ?? "INFO").toUpperCase();
+            const msg = info.message ?? "";
+            return `[${ts}] ${lvl}: ${msg}`;
+        })
     );
 
     const transports: winston.transport[] = [];
 
     if (enableConsole) {
-        transports.push(new winston.transports.Console({
-            format: winston.format.combine(
-                winston.format.colorize({ all: true }),
-                formatter
-            )
-        }));
+        transports.push(new winston.transports.Console({ format: formatter }));
     }
 
     if (enableFile) {
