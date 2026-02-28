@@ -6,12 +6,11 @@
   "private": true,
   "scripts": {
     "build": "npm run build-ts && npm run copy-assets",
-    "build-ts": "tsc",
-    "copy-assets": "cpx \"src/desktop_client/{frontend,assets}/**/*\" dist/desktop_client && cpx \"src/server/{templates,assets,templates}/**/*\" dist/server",
-    "start:client": "npm run build && electron ./dist/run-client.js",
-    "start:server": "npm run build && node ./dist/run-server.js",
-    "test:server": "npm run build && node ./dist/run-server.js --config test/config.yml",
-    "clean": "rimraf dist"
+    "build-ts": "tsc --outDir dist",
+    "copy-assets": "cpx \"src/server/{templates,static}/**/*.{html,css,js,png,jpg,svg}\" dist/server",
+    "start:server": "npm run build && node ./dist/index.js",
+    "test:server": "npm run build && node ./dist/index.js --config test/config.yml",
+    "clean": "rimraf dist package"
   },
   "devDependencies": {
     "@types/ejs": "^3.1.5",
@@ -28,12 +27,13 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "commander": "^14.0.3",
     "ejs": "^4.0.1",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
     "js-yaml": "^4.1.1",
-    "keytar": "^7.9.0",
     "mysql2": "^3.18.2",
-    "nexe": "^5.0.0-beta.4",
     "node-notifier": "^10.0.1",
     "pg": "^8.19.0",
     "reflect-metadata": "^0.2.2",

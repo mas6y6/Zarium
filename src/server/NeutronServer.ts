@@ -3,16 +3,18 @@ import * as http from "node:http";
 import * as path from "node:path";
 import * as fs from "fs/promises";
 import {NeutronConfig} from "./NeutronConfig";
-import keytar from "keytar";
 import crypto from "crypto";
-import { createLogger } from "./logger";
+import { createLogger } from "./Logging";
 import winston from "winston";
 import * as https from "node:https";
 import {WebSocketServer, WebSocket} from "ws";
 import {IncomingMessage} from "node:http";
 import {Socket} from "node:net";
-import {renderTemplate} from "./templateRender";
+import {renderTemplate} from "./Renderer";
 import {Database} from "./database/Database";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import {User} from "./database/entities/User";
 
 export class NeutronServer {
     public static instance: NeutronServer;
@@ -57,7 +59,6 @@ export class NeutronServer {
             } catch (err) {
                 if ((err as NodeJS.ErrnoException).code === "ENOENT") {
                     await fs.mkdir(dataFolderPath, {recursive: true});
-                    this.firstStart = true;
                 } else {
                     throw err;
                 }
@@ -80,30 +81,42 @@ export class NeutronServer {
             }
         }
 
-        if (this.config.store_master_key_in_keychain) {
-            let stored = await keytar.getPassword(this.config.masterkey_keychain_service, this.config.masterkey_keychain_account);
-
-            if (stored) {
-                this.masterkey = Buffer.from(stored, "base64");
-            } else {
-                this.masterkey = crypto.randomBytes(32);
-                await keytar.setPassword(this.config.masterkey_keychain_service, this.config.masterkey_keychain_account, this.masterkey.toString("base64"));
-            }
-        } else {
-            try {
-                await fs.access(path.join(this.config.data_folder, "masterkey.key"));
-                let base64 = await fs.readFile(path.join(this.config.data_folder, "masterkey.key"), "utf-8");
-                this.masterkey = Buffer.from(base64, "base64");
-            } catch {
-                this.masterkey = crypto.randomBytes(32);
-                await fs.writeFile(path.join(this.config.data_folder, "masterkey.key"), this.masterkey.toString("base64"), "utf-8");
-            }
+        try {
+            await fs.access(path.join(this.config.data_folder, this.config.masterkey));
+            let base64 = await fs.readFile(path.join(this.config.data_folder, this.config.masterkey), "utf-8");
+            this.masterkey = Buffer.from(base64, "base64");
+        } catch {
+            this.masterkey = crypto.randomBytes(32);
+            await fs.writeFile(path.join(this.config.data_folder, this.config.masterkey), this.masterkey.toString("base64"), "utf-8");
         }
 
+        this.logger.info("Starting \""+this.config.database_type+"\" database...");
         this.database = Database.getInstance();
         await this.database.init(this.config);
 
+        this.logger.info("Database initialized");
+
         this.app = express();
+
+        this.app.use(helmet({
+            contentSecurityPolicy: {
+                directives: {
+                    ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+                    "script-src": ["'self'", "'unsafe-inline'"],
+                },
+            },
+        }));
+
+        if (this.config.rate_limit_enabled) {
+            const limiter = rateLimit({
+                windowMs: this.config.rate_limit_window_ms,
+                max: this.config.rate_limit_max,
+                standardHeaders: true,
+                legacyHeaders: false,
+            });
+            this.app.use(limiter);
+        }
+
         if (this.config.ssl_enabled) {
             const key = await fs.readFile(this.config.ssl_key);
             const cert = await fs.readFile(this.config.ssl_cert);
@@ -136,17 +149,26 @@ export class NeutronServer {
             });
         });
 
-        const routes = await fs.readdir(path.join(__dirname, "routes"));
-        routes.forEach((file) => {
-            require("./routes/" + file);
-        });
+        const routesDir = path.join(__dirname, "routes");
+        const routes = await fs.readdir(routesDir);
+        for (const file of routes) {
+            if (file.endsWith(".ts") || file.endsWith(".js")) {
+                require(path.join(routesDir, file));
+            }
+        }
+
+        require("./error_routes")
+
+        if (await Database.getDataSource().getRepository(User).count() === 0) {
+            this.firstStart = true;
+        }
 
         if (this.firstStart) {
             this.superadminKey = crypto.randomBytes(12).toString("hex");
 
             this.logger.info("-------------------------------------------------------");
             this.logger.info("");
-            this.logger.info("This is the first time that this Neutron server has been started!");
+            this.logger.info("Your server user database is empty! ( Assuming this is your first time starting Neutron )");
             this.logger.info("");
             this.logger.info(`Your superadmin key for this server is: ${this.superadminKey}`);
             this.logger.info("THIS KEY CANNOT BE USED MORE THAN ONCE!");
@@ -156,9 +178,6 @@ export class NeutronServer {
     }
 
     public start() {
-        this.app.use(async (req, res, next) => {
-            res.status(404).send(await renderTemplate("error.html"));
-        });
 
         this.server.listen(this.port, this.config.host, () => {
             if (this.config.ssl_enabled) {

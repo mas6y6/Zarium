@@ -1,0 +1,7 @@
+{
+  "main": "package/bundle.js",
+  "output": "package/app.exe",
+  "assets": {
+    "server": "package/server/**/*"
+  }
+}

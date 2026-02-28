@@ -17,14 +17,17 @@ export class NeutronConfig {
     public logging_max_files: string = "14d";
 
     // master_key
-    public store_master_key_in_keychain: boolean = false;
-    public masterkey_keychain_service: string = "NeutronServer";
-    public masterkey_keychain_account: string = "masterkey";
+    public masterkey: string = "masterkey.key";
 
     // ssl options
     public ssl_enabled: boolean = false;
     public ssl_key: string = "";
     public ssl_cert: string = "";
+
+    // rate limiter options
+    public rate_limit_enabled: boolean = true;
+    public rate_limit_window_ms: number = 15 * 60 * 1000;
+    public rate_limit_max: number = 100;
 
     // database options
     public database_type: string = "postgres";
@@ -60,13 +63,15 @@ export class NeutronConfig {
         this.logging_file = getPath<boolean>("logging.file", this.logging_file);
         this.logging_max_files = getPath<string>("logging.max_files", this.logging_max_files);
 
-        this.store_master_key_in_keychain = getPath<boolean>("masterkey.store_in_keychain", this.store_master_key_in_keychain);
-        this.masterkey_keychain_service = getPath<string>("masterkey.keychain_service", this.masterkey_keychain_service);
-        this.masterkey_keychain_account = getPath<string>("masterkey.keychain_account", this.masterkey_keychain_account);
+        this.masterkey = getPath<string>("masterkey.file", this.masterkey);
 
         this.ssl_enabled = getPath<boolean>("server.ssl.enabled", this.ssl_enabled);
         this.ssl_key = getPath<string>("server.ssl.key", this.ssl_key);
         this.ssl_cert = getPath<string>("server.ssl.cert", this.ssl_cert);
+
+        this.rate_limit_enabled = getPath<boolean>("server.rate_limit.enabled", this.rate_limit_enabled);
+        this.rate_limit_window_ms = getPath<number>("server.rate_limit.window_ms", this.rate_limit_window_ms);
+        this.rate_limit_max = getPath<number>("server.rate_limit.max", this.rate_limit_max);
 
         this.database_type = getPath<string>("database.type", this.database_type);
     }
