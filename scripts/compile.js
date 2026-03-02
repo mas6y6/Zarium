@@ -27,18 +27,53 @@ try {
     console.log('--- Step 2: Bundling into a single file (CJS) ---');
     // We bundle from dist/index.js (already compiled by tsc) to preserve decorator metadata
     const outFile = path.join(packageDir, 'main.cjs');
-    run(`npx esbuild "${path.join(distDir, 'index.js')}" --bundle --platform=node --format=cjs --outfile="${outFile}" --external:sqlite3 --external:pg --external:mysql2 --external:ejs --keep-names`);
+    // Ensure we include all server files in the bundle by using the compiled dist/index.js as entry point
+    // We use --loader to embed assets directly in the bundle
+    run(`npx esbuild "${path.join(distDir, 'index.js')}" --bundle --platform=node --format=cjs --outfile="${outFile}" --external:sqlite3 --external:pg --external:mysql2 --external:ejs --keep-names --loader:.html=text --loader:.css=text --loader:.yml=text --loader:.ts=text`);
 
-    // Create a tiny CommonJS bootstrap that uses Module.createRequire to load the CJS bundle from disk
-    const entryCjsPath = path.join(packageDir, 'entry.cjs');
-    fs.writeFileSync(entryCjsPath, `
-// SEA bootstrap: avoid using the embedded require() for userland modules
-const path = require('path');
-const Module = require('module');
-const mjsPath = path.join(path.dirname(process.execPath), 'main.cjs');
-const createRequire = Module.createRequire(process.execPath);
-createRequire(mjsPath);
-`);
+    // console.log('--- Step 2.1: Copying assets to package folder ---');
+    // Inlined assets mean we don't need to copy them to the package folder for the EXE to work,
+    // though the user might still want them there for customization.
+    // For "TRULY one exe" we can skip this or keep it as optional.
+    // Let's skip it to demonstrate the "bundled to one exe" part.
+
+    console.log('--- Step 2.1: Creating bootstrap entry point ---');
+    // To avoid the SEA require() warning and allow loading native modules from disk,
+    // we use a CJS bootstrap that uses Module.createRequire.
+    const entryPath = path.join(packageDir, 'entry.cjs');
+    const entryContent = `const { createRequire } = require('node:module');
+const requireNext = createRequire(process.execPath);
+requireNext('./main.cjs');
+`;
+    fs.writeFileSync(entryPath, entryContent);
+
+    console.log('--- Step 2.2: Copying native modules (sqlite3) ---');
+    // Native modules cannot be bundled into the SEA blob effectively.
+    // We'll copy them to the package folder so they're available on disk.
+    const nodeModulesDest = path.join(packageDir, 'node_modules');
+    if (!fs.existsSync(nodeModulesDest)) {
+        fs.mkdirSync(nodeModulesDest, { recursive: true });
+    }
+    
+    // Helper to copy a package from project's node_modules to package/node_modules
+    function copyModule(moduleName) {
+        const src = path.join(rootDir, 'node_modules', moduleName);
+        const dest = path.join(nodeModulesDest, moduleName);
+        if (fs.existsSync(src)) {
+            console.log(`Copying ${moduleName} to ${dest}`);
+            // Use xcopy or similar on Windows, cp -r on others
+            if (process.platform === 'win32') {
+                execSync(`xcopy "${src}" "${dest}" /E /I /H /Y /Q`, { stdio: 'ignore' });
+            } else {
+                execSync(`cp -r "${src}" "${dest}"`, { stdio: 'ignore' });
+            }
+        }
+    }
+    
+    copyModule('sqlite3');
+    // Also copy other potential native drivers if they exist
+    copyModule('pg');
+    copyModule('mysql2');
 
     console.log('--- Step 3: Generating SEA blob ---');
     run(`node --experimental-sea-config "${seaConfigPath}"`);

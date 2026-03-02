@@ -7,11 +7,10 @@
   "scripts": {
     "build": "npm run build-ts && npm run copy-assets",
     "build-ts": "tsc --outDir dist",
-    "copy-assets": "cpx \"src/server/{templates,static}/**/*.{html,css,js,png,jpg,svg}\" dist/server",
-    "start:server": "npm run build && node ./dist/index.js",
-    "test:server": "npm run build && node ./dist/index.js --config test/config.yml",
-    "package": "node scripts/compile.js",
-    "clean": "rimraf dist package"
+    "copy-assets": "cpx \"src/server/{templates,assets,static}/**/*.{yml,html,css,js,png,jpg,svg}\" dist/server",
+    "start:server": "npm run clean && npm run build && node ./dist/index.js",
+    "test:server": "npm run clean && npm run build && node ./dist/index.js --config test/config.yml",
+    "clean": "rimraf dist"
   },
   "devDependencies": {
     "@types/ejs": "^3.1.5",

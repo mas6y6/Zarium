@@ -1,5 +1,9 @@
 import fs from "fs/promises";
 import yaml from "js-yaml";
+import pathModule from "path";
+
+// @ts-ignore
+import defaultConfigYml from "./assets/defaults/config.yml";
 
 export class NeutronConfig {
     // Server options
@@ -17,7 +21,7 @@ export class NeutronConfig {
     public logging_max_files: string = "14d";
 
     // master_key
-    public masterkey: string = "masterkey.key";
+    public masterkey: string = "data/masterkey.key";
 
     // ssl options
     public ssl_enabled: boolean = false;
@@ -30,7 +34,7 @@ export class NeutronConfig {
     public rate_limit_max: number = 100;
 
     // database options
-    public database_type: string = "postgres";
+    public database_type: string = "sqlite";
 
     private content: any = {};
 
@@ -79,14 +83,26 @@ export class NeutronConfig {
     /**
      * Safely load a NeutronConfig from a YAML file
      */
+
     public static async loadSafe(path: string = "config.yml"): Promise<NeutronConfig> {
         try {
             const fileContents = await fs.readFile(path, "utf8");
             const parsed = yaml.load(fileContents);
             return this.safeConstruct(parsed);
-        } catch (err) {
-            console.warn(`Failed to load config from ${path}, using defaults.`, err);
-            return new NeutronConfig();
+        } catch (err: any) {
+            if (err.code === "ENOENT") {
+                console.warn(`Config not found at ${path}, copying default config.`);
+                try {
+                    await fs.writeFile(path, defaultConfigYml, "utf8");
+                } catch (copyErr) {
+                    console.error("Failed to copy default config:", copyErr);
+                }
+            } else {
+                console.warn(`Failed to load config from ${path}, using defaults.`, err);
+            }
+
+            const parsed = yaml.load(defaultConfigYml);
+            return this.safeConstruct(parsed);
         }
     }
 

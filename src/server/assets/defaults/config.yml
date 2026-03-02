@@ -1,0 +1,27 @@
+server:
+  host: 0.0.0.0
+  port: 8080
+  ssl:
+    enabled: false
+    certfile: ""
+    keyfile: ""
+  rate_limit:
+    enabled: true
+    window_ms: 900000
+    max: 100
+
+neutron:
+  data_folder: ./data
+
+logging:
+  logs_folder: ./logs
+  level: DEBUG
+  console: true
+  file: true
+  maxFiles: 14d
+
+masterkey:
+  file: data/masterkey.key
+
+database:
+  type: sqlite
