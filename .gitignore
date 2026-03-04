@@ -14,3 +14,4 @@ sea-prep.blob
 
 /test
 /src/generated/prisma
+package-lock.json
