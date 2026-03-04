@@ -15,7 +15,6 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import {User} from "./database/entities/User";
 import {KeyObject} from "crypto";
-import {KeyManager} from "./KeyManager";
 
 export interface ClientInfo {
     publicKey: string;
@@ -38,9 +37,6 @@ export class NeutronServer {
     public wss = new WebSocketServer({ noServer: true });
     public wsRouteHandlers: { [url: string]: (ws: WebSocket, req: IncomingMessage) => void } = {};
     private superadminKey: string = "";
-    public publicKey!: KeyObject | null;
-    private privateKey!: KeyObject | null;
-    public clientPublicKeys: { [id: string]: ClientInfo } = {};
 
     public static getInstance(): NeutronServer {
         if (!NeutronServer.instance) {
@@ -101,12 +97,6 @@ export class NeutronServer {
             this.masterkey = crypto.randomBytes(32);
             await fs.writeFile(path.join(this.config.data_folder, "masterkey.key"), this.masterkey.toString("base64"), "utf-8");
         }
-
-        const km = new KeyManager();
-        km.generateKeys();
-
-        this.publicKey = km.publicKey;
-        this.privateKey = km.privateKey;
 
         this.logger.info("Starting \""+this.config.database_type+"\" database...");
         this.database = Database.getInstance();
@@ -205,47 +195,5 @@ export class NeutronServer {
         handler: (ws: WebSocket, req: IncomingMessage) => void
     ) {
         this.wsRouteHandlers[url] = handler;
-    }
-
-    encryptForClient(clientID: string, message: string) {
-        const clientInfo = this.clientPublicKeys[clientID];
-        if (!clientInfo) throw new Error("Client not registered");
-
-        const clientPublicKey: KeyObject = crypto.createPublicKey(clientInfo.publicKey);
-
-        const aesKey = crypto.randomBytes(32);
-        const iv = crypto.randomBytes(12);
-
-        const cipher = crypto.createCipheriv("aes-256-gcm", aesKey, iv);
-        const encryptedData = Buffer.concat([cipher.update(message, "utf8"), cipher.final()]);
-        const authTag = cipher.getAuthTag();
-
-        const encryptedKey = crypto.publicEncrypt(clientPublicKey, aesKey);
-
-        return {
-            key: encryptedKey.toString("base64"),
-            iv: iv.toString("base64"),
-            authTag: authTag.toString("base64"),
-            data: encryptedData.toString("base64"),
-        };
-    }
-
-    decryptFromClient(clientID: string, encryptedObj: { key: string; iv: string; authTag: string; data: string }) {
-        if (!this.privateKey) throw new Error("Server private key not initialized");
-
-        const aesKey = crypto.privateDecrypt(
-            this.privateKey!,
-            Buffer.from(encryptedObj.key, "base64")
-        );
-
-        const iv = Buffer.from(encryptedObj.iv, "base64");
-        const authTag = Buffer.from(encryptedObj.authTag, "base64");
-        const encryptedData = Buffer.from(encryptedObj.data, "base64");
-
-        const decipher = crypto.createDecipheriv("aes-256-gcm", aesKey, iv);
-        decipher.setAuthTag(authTag);
-        const decrypted = Buffer.concat([decipher.update(encryptedData), decipher.final()]);
-
-        return decrypted.toString("utf8");
     }
 }

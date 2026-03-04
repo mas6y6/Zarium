@@ -1,4 +1,4 @@
-import React from "react"
+import React, { forwardRef } from "react"
 import './css/UI.css'
 
 export function LoadingCircle() {

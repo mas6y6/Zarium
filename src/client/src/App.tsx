@@ -5,8 +5,6 @@ import { LoadingCircle } from "./UI";
 import "./css/Font.css";
 import "./css/App.css";
 
-const enc = new NeutronEncryption();
-
 function App() {
     const containerRef = useRef<ModalContainerHandle>(null);
     const modalRef = useRef<ModalHandle>(null);
@@ -22,7 +20,7 @@ function App() {
             await new Promise(requestAnimationFrame);
             modalRef.current?.showModal();
 
-            await enc.handshake();
+            
         }
 
         main().catch((e) => {
