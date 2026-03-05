@@ -14,14 +14,6 @@ import {Database} from "./database/Database";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import {User} from "./database/entities/User";
-import {KeyObject} from "crypto";
-
-export interface ClientInfo {
-    publicKey: string;
-    lastPing: number;
-    ws: WebSocket;
-}
-
 
 export class NeutronServer {
     public version = "1.0.0";
@@ -36,6 +28,8 @@ export class NeutronServer {
     public firstStart: boolean = false;
     public wss = new WebSocketServer({ noServer: true });
     public wsRouteHandlers: { [url: string]: (ws: WebSocket, req: IncomingMessage) => void } = {};
+    public motd: string = "A Neutron Server";
+    public serverTitle: string = "Neutron";
     private superadminKey: string = "";
 
     public static getInstance(): NeutronServer {
@@ -180,7 +174,6 @@ export class NeutronServer {
     }
 
     public start() {
-
         this.server.listen(this.port, this.config.host, () => {
             if (this.config.ssl_enabled) {
                 this.logger.info(`Neutron Server running at https://${this.config.host}:${this.port}`);

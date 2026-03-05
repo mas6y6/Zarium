@@ -1,26 +1,39 @@
-import React, { useRef, useEffect } from "react";
-import { Modal, ModalContainer, ModalContainerHandle, ModalHandle } from "./Modals";
-import {NeutronEncryption} from "./NeutronEncryption";
-import { LoadingCircle } from "./UI";
+import React, {useRef, useEffect, RefObject, createRef} from "react";
+import {
+    Modal,
+    ModalContainer,
+    ModalContainerHandle,
+    ModalHandle,
+    LoadingModal,
+    NotificationContainer,
+    NotificationHandle
+} from "./UI";
+import {SetupInit} from "./UI/setup";
 import "./css/Font.css";
 import "./css/App.css";
+import {animationCooldown, sleep} from "./utils";
+
+export const notificationRef = createRef<NotificationHandle>();
+export const containerRef = createRef<ModalContainerHandle>();
 
 function App() {
-    const containerRef = useRef<ModalContainerHandle>(null);
     const modalRef = useRef<ModalHandle>(null);
 
     useEffect(() => {
         async function main() {
             containerRef.current?.set(
-                <Modal ref={modalRef}>
-                    <LoadingCircle />
-                </Modal>
+                <LoadingModal />
             );
 
-            await new Promise(requestAnimationFrame);
-            modalRef.current?.showModal();
+            let server_status = await (await fetch("/api/status")).json();
 
-            
+            await animationCooldown();
+            if (server_status.firstStart == true) {
+                containerRef.current?.set(<SetupInit />);
+            } else {
+
+            }
+            modalRef.current?.showModal();
         }
 
         main().catch((e) => {
@@ -38,6 +51,7 @@ function App() {
     return (
         <div className="App">
             <ModalContainer ref={containerRef} />
+            <NotificationContainer ref={notificationRef} />
         </div>
     );
 }
