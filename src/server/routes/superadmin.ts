@@ -1,8 +1,9 @@
-import {requireJson, safeRoute} from "../utils";
-import {NeutronServer} from "../NeutronServer";
+import {parseTime, requireJson, safeRoute} from "../utils";
+import {ZariumServer} from "../ZariumServer";
 import {User} from "../database/entities/User";
 import bcrypt from "bcrypt";
-const server:NeutronServer = NeutronServer.getInstance();
+import {UserSession} from "../database/entities/UserSessions";
+const server:ZariumServer = ZariumServer.getInstance();
 
 safeRoute(server.app, '/api/check-superadmin-key', 'post', async (req,res) => {
     if (!requireJson(req,res)) return;
@@ -43,12 +44,13 @@ safeRoute(server.app, '/api/create-superadmin', 'post', async (req,res) => {
             })
         }
 
-        const userRepo = NeutronServer.getInstance().database.dataSource.getRepository(User);
+        const userRepo = ZariumServer.getInstance().database.dataSource.getRepository(User);
+        const userSessionRepo = ZariumServer.getInstance().database.dataSource.getRepository(UserSession);
         const passwordHash = await bcrypt.hash(req.body.password, 10);
         const user = userRepo.create({
             username: req.body.username,
             displayname: req.body.displayName,
-            roles: "",
+            perms: "",
             superadmin: true,
             password: passwordHash,
         });
@@ -56,6 +58,27 @@ safeRoute(server.app, '/api/create-superadmin', 'post', async (req,res) => {
         await userRepo.save(user);
 
         server.firstStart = false;
+
+        const session = await user.createSession();
+        const access_token = await (await userSessionRepo.findOne({
+            where: {
+                id: session.id
+            }
+        }))?.createAccessToken()
+
+        res.cookie('access-token', access_token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'strict',
+            maxAge: parseTime(ZariumServer.getInstance().ACCESS_TOKEN_EXPIRATION_TIME)
+        });
+
+        res.cookie('refresh-token', session.refreshToken, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'strict',
+            maxAge: parseTime(ZariumServer.getInstance().REFRESH_TOKEN_EXPIRATION_TIME)
+        });
 
         return res.send({
             detail: "Superadmin account created.",

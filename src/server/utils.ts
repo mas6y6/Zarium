@@ -1,7 +1,7 @@
 import {RawData, WebSocket} from "ws";
 import jwt from "jsonwebtoken";
 import express, {Application, ErrorRequestHandler, RequestHandler, Router} from "express";
-import {NeutronServer} from "./NeutronServer";
+import {ZariumServer} from "./ZariumServer";
 
 export function waitForMessage(ws: WebSocket): Promise<string> {
     return new Promise((resolve) => {
@@ -48,12 +48,14 @@ export function requireJson(req: express.Request, res: express.Response) {
     return true;
 }
 
-interface JwtPayload {
-    userId: number;
+export interface UserJwtPayload {
+    userId: string;
+    sessionId: string;
+    refresh_key?: string;
 }
 
 export interface SafeRequest extends express.Request {
-    user?: JwtPayload | null;
+    user?: UserJwtPayload | null;
 }
 
 export function safeRoute(
@@ -79,7 +81,7 @@ export function safeRoute(
             // TODO: Actually check if the token is valid
 
             try {
-                req.user = jwt.verify(token, NeutronServer.getInstance().ACCESS_TOKEN_SECRET) as JwtPayload;
+                req.user = jwt.verify(token, ZariumServer.getInstance().ACCESS_TOKEN_SECRET) as UserJwtPayload;
                 handler(req, res, next);
             } catch {
                 return res.status(401).json({ detail: "Invalid or expired token" });
@@ -98,4 +100,20 @@ export function safeRoute(
                 res.status(405).json({ detail: "Method Not Allowed" });
             });
         });
+}
+
+export function parseTime(str: string): number {
+    const match = str.match(/^(\d+)([dhms])$/);
+    if (!match) throw new Error("Invalid time format");
+
+    const num = parseInt(match[1]);
+    const unit = match[2];
+
+    switch (unit) {
+        case "d": return num * 86400000;
+        case "h": return num * 3600000;
+        case "m": return num * 60000;
+        case "s": return num * 1000;
+        default: throw new Error("Invalid time unit");
+    }
 }

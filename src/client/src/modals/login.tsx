@@ -20,6 +20,6 @@ export function LoginInit(props: LoginModalProp) {
             <Entry ref={entry} placeholder="Username"/> <Button className="btn btn-primary" ref={button}>Continue</Button>
         </div>
 
-        <p className={"subtext"}>Neutron Version: {props.version}</p>
+        <p className={"subtext"}>Zarium Version: {props.version}</p>
     </Modal>)
 }

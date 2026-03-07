@@ -1,16 +1,17 @@
 server:
   host: 0.0.0.0
   port: 8080
+  trust_proxy: false
   ssl:
     enabled: false
-    certfile: ""
-    keyfile: ""
+    cert: ""
+    key: ""
   rate_limit:
     enabled: true
     window_ms: 900000
     max: 100
 
-neutron:
+Zarium:
   data_folder: ./data
 
 logging:

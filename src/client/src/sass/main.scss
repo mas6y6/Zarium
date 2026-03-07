@@ -1,9 +1,9 @@
 @import "variables";
+// Import rest of Bootstrap
+@import "bootstrap/scss/bootstrap";
+
 @import "themes";
 @import "fonts";
 @import "ui-components";
 @import "modals";
 @import "notifications";
-
-// Import rest of Bootstrap
-@import "bootstrap/scss/bootstrap";

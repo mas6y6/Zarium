@@ -1,17 +1,17 @@
-import {NeutronServer} from "./server/NeutronServer";
+import {ZariumServer} from "./server/ZariumServer";
 import {Command} from "commander";
 
 const program = new Command();
 program
-    .name("neutron")
-    .description("Neutron Server")
+    .name("Zarium")
+    .description("Zarium Server")
     .version("1.0.0")
     .option("-c, --config <path>", "path to config file", "config.yml")
     .action(async (options) => {
         try {
-            new NeutronServer();
-            await NeutronServer.getInstance().init(options.config);
-            NeutronServer.getInstance().start();
+            new ZariumServer();
+            await ZariumServer.getInstance().init(options.config);
+            ZariumServer.getInstance().start();
         } catch (e: unknown) {
             if (e instanceof Error) {
                 console.error("[ CRASHED ]\n" + e.stack);

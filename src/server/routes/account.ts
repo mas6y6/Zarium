@@ -1,15 +1,14 @@
-import {NeutronServer} from "../NeutronServer";
-import {SafeRequest, safeRoute} from "../utils";
-import jwt, {JwtPayload} from "jsonwebtoken";
+import {ZariumServer} from "../ZariumServer";
+import {parseTime, requireJson, SafeRequest, safeRoute} from "../utils";
+import {User} from "../database/entities/User";
+import {UserSession} from "../database/entities/UserSessions";
+import {UserJwtPayload} from "../utils";
+import jwt from "jsonwebtoken";
 
-const server:NeutronServer = NeutronServer.getInstance();
+const server:ZariumServer = ZariumServer.getInstance();
 
-safeRoute(server.app, '/api/verify_login', 'post', async (req: SafeRequest,res) => {
+safeRoute(server.app, '/api/auth/verify', 'post', async (req: SafeRequest,res) => {
     let token: string | undefined;
-    let user: JwtPayload | undefined;
-
-    let access_token = false;
-    let refresh_token = false;
 
     const authHeader = req.headers.authorization;
     if (authHeader?.startsWith("Bearer ")) {
@@ -18,17 +17,99 @@ safeRoute(server.app, '/api/verify_login', 'post', async (req: SafeRequest,res) 
         token = req.cookies["access-token"];
     }
 
-    if (!token) return res.status(401).json({ detail: "Missing access token" });
+    if (!token) return res.status(401).json({ detail: "Missing token" });
 
-    // TODO: Actually check if the token is valid
-
+    let payload: UserJwtPayload | null = null;
     try {
-        user = jwt.verify(token, NeutronServer.getInstance().ACCESS_TOKEN_SECRET) as JwtPayload;
-    } catch (_) {}
+        payload = jwt.verify(token, ZariumServer.getInstance().ACCESS_TOKEN_SECRET) as UserJwtPayload;
+    } catch {
+        return res.status(401).json({ detail: "Invalid token" })
+    }
 
     return res.send({
-        access_token: access_token,
-        refresh_token: refresh_token,
-        user_id: user?.userId
+        id: payload?.userId
+    })
+});
+
+safeRoute(server.app, '/api/auth/password_auth', 'post', async (req: SafeRequest,res) => {
+    if (!requireJson(req,res)) return;
+
+    const userRepo = ZariumServer.getInstance().database.dataSource.getRepository(User);
+    const userSessionRepo = ZariumServer.getInstance().database.dataSource.getRepository(UserSession);
+    const user = await userRepo.findOne({where: {username: req.body.username}});
+    if (!user) return res.status(401).json({ detail: "Invalid credentials" });
+
+    if (!(await user.checkPassword(req.body.password))) return res.status(401).json({ detail: "Invalid credentials" });
+    const session = await user.createSession();
+    const access_token = await (await userSessionRepo.findOne({
+        where: {
+            id: session.id
+        }
+    }))?.createAccessToken()
+
+    res.cookie('access-token', access_token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'strict',
+        maxAge: parseTime(ZariumServer.getInstance().ACCESS_TOKEN_EXPIRATION_TIME)
     });
+
+    res.cookie('refresh-token', `${session.refreshKey}:${session.refreshToken}`, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'strict',
+        maxAge: parseTime(ZariumServer.getInstance().REFRESH_TOKEN_EXPIRATION_TIME)
+    });
+
+    res.send({
+        user_id: user.id
+    });
+})
+
+safeRoute(server.app, '/api/auth/refresh', 'post', async (req: SafeRequest,res) => {
+    const userSessionRepo = ZariumServer.getInstance().database.dataSource.getRepository(UserSession);
+    if (!req.cookies?.["refresh-token"]) {
+        res.status(401).send({ detail: "Invalid refresh token" });
+        return;
+    }
+
+    const session = await userSessionRepo.findOne({
+        where: {
+            refreshTokenKey: req.cookies?.["refresh-token"]?.split(":")[0],
+        }
+    });
+
+    if (!session) {
+        res.status(401).send({ detail: "Invalid refresh token" });
+        return;
+    }
+
+    const access_token = await session?.createAccessToken()
+})
+
+safeRoute(server.app, '/api/auth/force-logout', 'post', async (req: SafeRequest,res) => {
+    res.clearCookie('access-token');
+    res.clearCookie('refresh-token');
+
+    res.send({
+        detail: "Cleared session cookies"
+    })
+})
+
+safeRoute(server.app, '/api/auth/logout', 'post', async (req: SafeRequest,res) => {
+    const userSessionRepo = ZariumServer.getInstance().database.dataSource.getRepository(UserSession);
+    await (await userSessionRepo.findOne({
+        where: {
+            refreshTokenKey: req.cookies?.["refresh-token"]?.split(":")[0],
+        }
+    }))?.revoke()
+
+    res.clearCookie('access-token');
+    res.clearCookie('refresh-token');
+
+    res.send({
+        detail: "Logged out"
+    })
+}, {
+    require_auth: true
 })

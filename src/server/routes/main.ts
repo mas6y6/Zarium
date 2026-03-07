@@ -1,7 +1,7 @@
-import {NeutronServer} from "../NeutronServer";
+import {ZariumServer} from "../ZariumServer";
 import {renderTemplate} from "../Renderer";
 import {SafeRequest, safeRoute} from "../utils";
-const server:NeutronServer = NeutronServer.getInstance();
+const server:ZariumServer = ZariumServer.getInstance();
 
 safeRoute(server.app, '/', 'get', async (req: SafeRequest,res) => {
     res.send(await renderTemplate("index.html", { csrfToken: (req as any).csrfToken() }))

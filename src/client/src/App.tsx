@@ -22,7 +22,7 @@ function App() {
             containerRef.current?.set(
                 <Modal>
                     <h1>Error</h1>
-                    <p>An error occurred while loading Neutron.</p>
+                    <p>An error occurred while loading Zarium.</p>
                     <p>Please reload to try again.</p>
                 </Modal>
             );

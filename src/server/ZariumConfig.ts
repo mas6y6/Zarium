@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import yaml from "js-yaml";
 import pathNode from "path";
 
-export class NeutronConfig {
+export class ZariumConfig {
     // Server options
     public port: number = 8080;
     public debug: boolean = false;
@@ -29,6 +29,7 @@ export class NeutronConfig {
 
     // database options
     public database_type: string = "sqlite";
+    public trust_proxy: any = false;
 
     // access token options
     public access_token_expiration: string = "15m";
@@ -58,7 +59,7 @@ export class NeutronConfig {
         this.debug = getPath<boolean>("server.debug", this.debug);
         this.host = getPath<string>("server.host", this.host);
 
-        this.data_folder = getPath<string>("neutron.data_folder", this.data_folder);
+        this.data_folder = getPath<string>("Zarium.data_folder", this.data_folder);
 
         this.logs_folder = getPath<string>("logging.logs_folder", this.logs_folder);
         this.logging_console = getPath<boolean>("logging.console", this.logging_console);
@@ -74,15 +75,16 @@ export class NeutronConfig {
         this.rate_limit_max = getPath<number>("server.rate_limit.max", this.rate_limit_max);
 
         this.database_type = getPath<string>("database.type", this.database_type);
+        this.trust_proxy = getPath<any>("server.trust_proxy", this.trust_proxy);
 
         this.access_token_expiration = getPath<string>("server.access_token.expiration", this.access_token_expiration);
         this.refresh_token_expiration = getPath<string>("server.refresh_token.expiration", this.refresh_token_expiration);
     }
 
     /**
-     * Safely load a NeutronConfig from a YAML file
+     * Safely load a ZariumConfig from a YAML file
      */
-    public static async loadSafe(path: string = "config.yml"): Promise<NeutronConfig> {
+    public static async loadSafe(path: string = "config.yml"): Promise<ZariumConfig> {
         try {
             const fileContents = await fs.readFile(path, "utf8");
             const parsed = yaml.load(fileContents);
@@ -106,23 +108,23 @@ export class NeutronConfig {
     }
 
     /**
-     * Construct a NeutronConfig safely from any object
+     * Construct a ZariumConfig safely from any object
      */
-    private static safeConstruct(content: any): NeutronConfig {
+    private static safeConstruct(content: any): ZariumConfig {
         try {
             if (typeof content !== "object" || content === null) {
                 throw new Error("Config content is not an object");
             }
-            return new NeutronConfig(content);
+            return new ZariumConfig(content);
         } catch (err) {
             console.warn("Invalid config content, using defaults.", err);
-            return new NeutronConfig();
+            return new ZariumConfig();
         }
     }
 
     /**
      * Get a nested value from the YAML content with optional fallback
-     * Example: config.getPath("neutron.data_folder", "./default_data")
+     * Example: config.getPath("Zarium.data_folder", "./default_data")
      */
 
     public getPathOrDefault<T = any>(pathStr: string, fallback: T): T {

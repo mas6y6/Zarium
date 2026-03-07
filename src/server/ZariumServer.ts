@@ -4,7 +4,7 @@ import csurf from "csurf";
 import * as http from "node:http";
 import * as path from "node:path";
 import * as fs from "fs/promises";
-import {NeutronConfig} from "./NeutronConfig";
+import {ZariumConfig} from "./ZariumConfig";
 import crypto from "crypto";
 import { createLogger } from "./Logging";
 import winston from "winston";
@@ -18,46 +18,46 @@ import rateLimit from "express-rate-limit";
 import {User} from "./database/entities/User";
 import {handleCSRF, handleErrors} from "./utils";
 
-export class NeutronServer {
+export class ZariumServer {
     public version = "1.0.0";
-    public static instance: NeutronServer;
+    public static instance: ZariumServer;
     public app!: express.Application;
     public server!: http.Server;
     public port: number = 3000;
-    public config!: NeutronConfig;
+    public config!: ZariumConfig;
     public logger!: winston.Logger;
     public database!: Database;
     public masterkey!: Buffer;
     public firstStart: boolean = false;
     public wss = new WebSocketServer({ noServer: true });
     public wsRouteHandlers: { [url: string]: (ws: WebSocket, req: IncomingMessage) => void } = {};
-    public motd: string = "A Neutron Server";
-    public serverTitle: string = "Neutron";
+    public motd: string = "A Zarium Server";
+    public serverTitle: string = "Zarium";
     public superadminKey: string = "";
 
     public ACCESS_TOKEN_SECRET: string = crypto.randomBytes(32).toString("hex");
     public ACCESS_TOKEN_EXPIRATION_TIME: string = "10m";
     public REFRESH_TOKEN_EXPIRATION_TIME: string = "7d";
 
-    public static getInstance(): NeutronServer {
-        if (!NeutronServer.instance) {
-            throw new Error("NeutronServer instance not initialized");
+    public static getInstance(): ZariumServer {
+        if (!ZariumServer.instance) {
+            throw new Error("ZariumServer instance not initialized");
         }
-        return NeutronServer.instance;
+        return ZariumServer.instance;
     }
 
     constructor() {
-        if (NeutronServer.instance) {
-            throw new Error("NeutronServer instance already initialized");
+        if (ZariumServer.instance) {
+            throw new Error("ZariumServer instance already initialized");
         }
 
-        NeutronServer.instance = this;
+        ZariumServer.instance = this;
     }
 
     async init(configPath: string = "config.yml") {
         try {
             await fs.access(configPath);
-            this.config = await NeutronConfig.loadSafe(configPath);
+            this.config = await ZariumConfig.loadSafe(configPath);
 
             this.port = this.config.port;
 
@@ -74,7 +74,7 @@ export class NeutronServer {
             }
         } catch (err) {
             if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-                this.config = new NeutronConfig();
+                this.config = new ZariumConfig();
                 const dataFolderPath = path.resolve(this.config.data_folder);
                 await fs.mkdir(dataFolderPath, { recursive: true });
             } else {
@@ -116,6 +116,7 @@ export class NeutronServer {
         this.logger.info("Database initialized");
 
         this.app = express();
+        this.app.set("trust proxy", this.config.trust_proxy);
 
         if (this.config.ssl_enabled) {
             const key = await fs.readFile(this.config.ssl_key);
@@ -215,7 +216,7 @@ Your server's user database is empty (first-time startup).
 =======================================================
 ⚠️  WARNING: SSL is NOT enabled!
 -------------------------------------------------------
-Your Neutron server is running without SSL. This means:
+Your Zarium server is running without SSL. This means:
 - All traffic, including chat messages, is sent in plain text
 - Your server is vulnerable to eavesdropping or tampering
 
@@ -228,9 +229,9 @@ Your Neutron server is running without SSL. This means:
     public start() {
         this.server.listen(this.port, this.config.host, () => {
             if (this.config.ssl_enabled) {
-                this.logger.info(`Neutron Server running at https://${this.config.host}:${this.port}`);
+                this.logger.info(`Zarium Server running at https://${this.config.host}:${this.port}`);
             } else {
-                this.logger.info(`Neutron Server running at http://${this.config.host}:${this.port}`);
+                this.logger.info(`Zarium Server running at http://${this.config.host}:${this.port}`);
             }
         });
     }

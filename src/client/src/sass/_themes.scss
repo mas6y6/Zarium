@@ -39,8 +39,8 @@
   }
 }
 
-html, body {
-  background-color: var(--background-color);
+html, body, #root {
+  background-color: var(--background-color) !important;
   color: var(--text-color);
   height: 100vh;
   width: 100vw;
