@@ -1,5 +1,6 @@
 import {Entity, Column, PrimaryGeneratedColumn, OneToOne, OneToMany} from "typeorm";
 import {UserTOTP} from "./UserTOTP";
+import {UserAvatar} from "./UserAvatar";
 import {UserSession} from "./UserSessions";
 import {ZariumServer} from "../../ZariumServer";
 import bcrypt, {hash} from "bcrypt";
@@ -32,6 +33,9 @@ export class User {
 
     @OneToOne(() => UserTOTP, totp => totp.user, { cascade: true })
     totp?: UserTOTP;
+
+    @OneToOne(() => UserAvatar, avatar => avatar.user, { cascade: true })
+    avatar?: UserAvatar;
 
     @OneToMany(() => UserSession, (session) => session.user)
     sessions!: UserSession[];

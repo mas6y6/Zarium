@@ -61,21 +61,26 @@ export class ZariumServer {
             this.port = this.config.port;
 
             const dataFolderPath = path.resolve(this.config.data_folder);
-            try {
-                await fs.access(dataFolderPath);
-                // exists
-            } catch (err) {
-                if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-                    await fs.mkdir(dataFolderPath, {recursive: true});
-                } else {
-                    throw err;
+            const userImagesPath = path.join(dataFolderPath, "userimages");
+
+            for (const folder of [dataFolderPath, userImagesPath]) {
+                try {
+                    await fs.access(folder);
+                } catch (err) {
+                    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+                        await fs.mkdir(folder, {recursive: true});
+                    } else {
+                        throw err;
+                    }
                 }
             }
         } catch (err) {
             if ((err as NodeJS.ErrnoException).code === "ENOENT") {
                 this.config = new ZariumConfig();
                 const dataFolderPath = path.resolve(this.config.data_folder);
+                const userImagesPath = path.join(dataFolderPath, "userimages");
                 await fs.mkdir(dataFolderPath, { recursive: true });
+                await fs.mkdir(userImagesPath, { recursive: true });
             } else {
                 console.error(err);
             }

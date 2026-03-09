@@ -1,9 +1,12 @@
 import {ZariumServer} from "../ZariumServer";
 import {parseTime, requireJson, SafeRequest, safeRoute} from "../utils";
 import {User} from "../database/entities/User";
+import {UserAvatar} from "../database/entities/UserAvatar";
 import {UserSession} from "../database/entities/UserSessions";
 import {UserJwtPayload} from "../utils";
 import jwt from "jsonwebtoken";
+import fs from "fs/promises";
+import path from "path";
 
 const server:ZariumServer = ZariumServer.getInstance();
 
@@ -26,8 +29,12 @@ safeRoute(server.app, '/api/auth/verify', 'post', async (req: SafeRequest,res) =
         return res.status(401).json({ detail: "Invalid token" })
     }
 
+    const user = await User.getUserById(payload.userId);
+    if (!user) return res.status(401).json({ detail: "User not found" });
+
     return res.send({
-        id: payload?.userId
+        id: payload?.userId,
+        superadmin: user.superadmin
     })
 });
 
@@ -154,3 +161,106 @@ safeRoute(server.app, '/api/auth/logout', 'post', async (req: SafeRequest,res) =
 }, {
     require_auth: true
 })
+
+safeRoute(server.app, '/api/auth/get-user-data', 'get', async (req: SafeRequest,res) => {
+    const userRepository = ZariumServer.getInstance().database.dataSource.getRepository(User);
+    const user = await userRepository.findOne({
+        where: {
+            id: req.user?.userId
+        }
+    })
+
+    res.send({
+        id: user?.id,
+        username: user?.username,
+        displayname: user?.displayname,
+        superadmin: user?.superadmin,
+        createdAt: user?.createdAt,
+        perms: user?.perms,
+
+    })
+}, {
+    require_auth: true
+})
+
+safeRoute(server.app, '/api/get-avatar', 'get', async (req: SafeRequest,res) => {
+    const userId = req.query.id as string;
+    if (userId == null) return res.status(400).json({ detail: "Missing user id" });
+
+    const avatarRepository = ZariumServer.getInstance().database.dataSource.getRepository(UserAvatar);
+    const avatar = await avatarRepository.findOne({
+        where: {
+            id: userId
+        }
+    });
+
+    const defaultAvatarPath = path.join(__dirname, "../assets", "img", "profile.png");
+    const avatarPath = path.join(ZariumServer.getInstance().config.data_folder, "userimages", userId);
+
+    if (!avatar) {
+        return res.send(await fs.readFile(defaultAvatarPath));
+    }
+
+    try {
+        const data = await fs.readFile(avatarPath);
+        res.set("Content-Type", avatar.mimetype);
+        res.send(data);
+    } catch {
+        return res.send(await fs.readFile(defaultAvatarPath));
+    }
+});
+
+safeRoute(server.app, '/api/account/avatar', 'post', async (req: SafeRequest, res) => {
+    if (!req.user) return res.status(401).json({ detail: "Unauthorized" });
+
+    const contentType = req.headers['content-type'];
+    if (!contentType || !contentType.startsWith('image/')) {
+        return res.status(400).json({ detail: "Invalid content type. Expected image/*" });
+    }
+
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', async () => {
+        const buffer = Buffer.concat(chunks);
+
+        if (buffer.length > 5 * 1024 * 1024) { // 5MB limit
+            return res.status(413).json({ detail: "Image too large" });
+        }
+
+        const avatarRepository = ZariumServer.getInstance().database.dataSource.getRepository(UserAvatar);
+        let avatar = await avatarRepository.findOne({ where: { id: req.user!.userId } });
+
+        const avatarPath = path.join(ZariumServer.getInstance().config.data_folder, "userimages", req.user!.userId);
+        await fs.writeFile(avatarPath, buffer);
+
+        if (avatar) {
+            avatar.mimetype = contentType;
+        } else {
+            avatar = avatarRepository.create({
+                id: req.user!.userId,
+                mimetype: contentType
+            });
+        }
+
+        await avatarRepository.save(avatar);
+        res.send({ detail: "Avatar updated" });
+    });
+}, {
+    require_auth: true
+});
+
+safeRoute(server.app, '/api/auth/get_auth_methods', 'post', async (req: SafeRequest,res) => {
+    if (!requireJson(req,res)) return;
+
+    let methods: string[] = [];
+    const userRepo = ZariumServer.getInstance().database.dataSource.getRepository(User);
+    const user = await userRepo.findOne({where: {username: req.body.username}});
+    if (!user) return res.status(401).json({ detail: "User not found." });
+
+    methods.push("password");
+
+    res.send({
+        username: req.body.username,
+        methods: methods
+    })
+});

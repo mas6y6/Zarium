@@ -17,7 +17,7 @@
 .UIEntry {
   outline: none;
   border: 1px solid var(--border-color);
-  border-radius: $border-radius-lg;
+  border-radius: 20px;
   padding: $spacer * 0.5 $spacer;
   color: var(--text-color);
   background-color: var(--background-color);
@@ -31,7 +31,7 @@
 
 .UIButton {
   outline: none;
-  border-radius: $border-radius-lg;
+  border-radius: 20px;
   padding: ($spacer * 0.5) ($spacer * 1.25);
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease;

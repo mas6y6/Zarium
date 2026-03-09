@@ -14,11 +14,6 @@ export interface ModalContainerHandle {
     close: () => void;
 }
 
-export interface ModalHandle {
-    showModal: () => void;
-    hideModal: () => void;
-}
-
 export interface NotificationHandle {
     add: (notification: NotificationProps) => void;
 }
@@ -26,7 +21,6 @@ export interface NotificationHandle {
 export interface NotificationHandle {
     add: (notification: NotificationProps) => void;
 }
-
 
 export interface NotificationProps {
     id?: string;
@@ -36,10 +30,6 @@ export interface NotificationProps {
     type?: 'info' | 'error' | 'success' | 'warning';
     borderColor?: string;
     onClick?: () => void;
-}
-
-interface ModalProps {
-    children?: ReactNode;
 }
 
 export const ModalContainer = forwardRef<ModalContainerHandle>((props, ref) => {
@@ -63,6 +53,15 @@ export const ModalContainer = forwardRef<ModalContainerHandle>((props, ref) => {
         </div>
     );
 });
+
+export interface ModalHandle {
+    showModal: () => void;
+    hideModal: () => void;
+}
+
+interface ModalProps {
+    children?: ReactNode;
+}
 
 export const Modal = forwardRef<ModalHandle, ModalProps>((props, ref) => {
     const [visible, setVisible] = useState(false);
@@ -136,19 +135,21 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
         | 'info'
         | 'light'
         | 'dark'
-        | 'link';
+        | 'link'
+        | 'transparent';
     style?: CSSProperties;
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-    ({ color = 'primary', className, style, ...props }, ref) => {
+    ({color = 'primary', className, style, ...props}, ref) => {
         const colorClass = `btn-${color}`;
+        const transparentStyle = color === 'transparent' ? {backgroundColor: 'transparent'} : {};
 
         return (
             <button
                 ref={ref}
                 className={`btn UIButton ${colorClass} ${className ?? ''}`}
-                style={style}
+                style={{...transparentStyle, ...style}}
                 {...props}
             />
         );
@@ -259,7 +260,6 @@ interface BackgroundOptions {
 export interface BackgroundHandle {
     setBackground: (options: BackgroundOptions) => void;
 }
-
 
 interface BackgroundProps {
     color?: string;

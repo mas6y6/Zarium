@@ -10,14 +10,18 @@ import {
 } from "./UI";
 import './sass/main.scss';
 import {MainApplication} from "./MainApplication";
-import {Zarium} from "./Zarium";
+import {Zarium, ZariumHandle} from "./Zarium";
 
 export const notificationRef = createRef<NotificationHandle>();
 export const modalContainerRef = createRef<ModalContainerHandle>();
 export const backgroundRef = createRef<BackgroundHandle>();
-export const ZariumRef = createRef<HTMLDivElement>();
+export const ZariumRef = createRef<ZariumHandle>();
+export let setSuperadminStatus: (status: boolean) => void;
 
 function App() {
+    const [superadmin, setSuperadmin] = React.useState(false);
+    setSuperadminStatus = setSuperadmin;
+
     useEffect(() => {
         MainApplication().catch((e) => {
             console.error(e);
@@ -32,11 +36,11 @@ function App() {
     }, []);
 
     return (
-        <div className="App">
+        <div className="App container-fluid">
             <BackgroundComponent ref={backgroundRef}/>
             <ModalContainer ref={modalContainerRef}/>
             <NotificationContainer ref={notificationRef}/>
-            <Zarium ref={ZariumRef}/>
+            <Zarium ref={ZariumRef} superadmin={superadmin}/>
         </div>
     );
 }

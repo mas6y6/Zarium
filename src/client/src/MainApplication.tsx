@@ -1,9 +1,10 @@
 import {animationCooldown, fetchWithCsrf} from "./utils";
 import {SetupInit} from "./modals/setup";
 import React from "react";
-import {modalContainerRef, notificationRef} from "./App";
+import {modalContainerRef, notificationRef, ZariumRef, setSuperadminStatus} from "./App";
 import {LoadingModal} from "./UI";
 import {LoginInit} from "./modals/login";
+import {Accountbar, Groups} from "./Zarium";
 
 export async function MainApplication() {
     modalContainerRef.current?.set(
@@ -27,9 +28,11 @@ export async function MainApplication() {
     if (server_status.firstStart == true) {
         modalContainerRef.current?.set(<SetupInit />);
     } else {
-        if (!await authCheck()) {
+        const auth = await authCheck();
+        if (!auth.success) {
             modalContainerRef.current?.set(<LoginInit motd={server_status.motd} version={server_status.version}/>);
         } else {
+            setSuperadminStatus(auth.superadmin || false);
             await animationCooldown();
             modalContainerRef.current?.close();
             await renderApplication();
@@ -43,18 +46,29 @@ export async function authCheck() {
     });
 
     if (!res.ok) {
-        const res = await fetchWithCsrf("/api/auth/refresh", {
+        const refreshRes = await fetchWithCsrf("/api/auth/refresh", {
             method: "POST"
         });
-        if (!res.ok) {
-            return false;
+        if (!refreshRes.ok) {
+            return { success: false };
         } else {
             console.log("Refreshed session.");
+            const retryRes = await fetchWithCsrf("/api/auth/verify", {
+                method: "POST"
+            });
+            if (!retryRes.ok) return { success: false };
+            const data = await retryRes.json();
+            return { success: true, superadmin: data.superadmin };
         }
     }
-    return true;
+    const data = await res.json();
+    return { success: true, superadmin: data.superadmin };
 }
 
 export async function renderApplication() {
+    const res = await (await fetchWithCsrf("/api/auth/get-user-data")).json();
 
+    ZariumRef.current?.show();
+    ZariumRef.current?.getSidebarContent()?.setGroups(<Groups/>);
+    ZariumRef.current?.getSidebarContent()?.setAccountbar(<Accountbar id={res.id} username={res.username} displayname={res.displayname}/>);
 }

@@ -1,8 +1,8 @@
 import {Button, LoadingModal, Modal, ModalHandle, Entry, PasswordEntry} from "../UI";
 import React, {createRef, useRef} from "react";
-import {modalContainerRef, notificationRef} from "../App";
+import {modalContainerRef, notificationRef, setSuperadminStatus} from "../App";
 import {animationCooldown, fetchWithCsrf} from "../utils";
-import {renderApplication} from "../MainApplication";
+import {authCheck, renderApplication} from "../MainApplication";
 
 export function SetupInit() {
     const entry = useRef<HTMLInputElement>(null);
@@ -133,16 +133,23 @@ export function SetupAdminAccountCreation({superAdminKey}: SetupAdminAccountCrea
             })
         }));
 
-        if (!res.ok) {
+        if (res.ok) {
+            const auth = await authCheck();
+            if (auth.success) {
+                setSuperadminStatus(auth.superadmin || false);
+            }
+            modalContainerRef.current?.close();
+            await renderApplication();
+        } else {
+            loadingModalRef.current?.hideModal();
+            await animationCooldown();
             notificationRef.current?.add({
                 title: "Error",
                 content: (await res.json()).detail,
                 type: "error"
-            })
+            });
+            modalContainerRef?.current?.set(<SetupAdminAccountCreation superAdminKey={superAdminKey}/>);
         }
-
-        modalContainerRef.current?.close();
-        await renderApplication();
     }
 
     return (
