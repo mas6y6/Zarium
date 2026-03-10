@@ -37,7 +37,7 @@ html,body {
   transition: opacity 0.3s ease, transform 0.3s ease, left 0.3s ease;
   width: 300px;
   flex-shrink: 0;
-  overflow-y: auto;
+  overflow: hidden;
 
   display: flex;
   flex-direction: column;
@@ -162,16 +162,38 @@ html,body {
       stroke: currentColor;
     }
   }
+
+  .AdminButton {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+
+    svg {
+      width: 18px;
+      height: 18px;
+
+      &:last-child {
+        width: 14px;
+        height: 14px;
+        margin-bottom: -4px;
+        margin-left: -8px;
+        background: var(--primary-color);
+        border-radius: 50%;
+        padding: 1px;
+      }
+    }
+  }
 }
 
 .Accountbar {
-  height: 15%;
+  height: 70px;
   padding: 1rem;
   display: flex;
   background-color: var(--background-color);
-  border-radius: 20px 20px 0 0;
+  border-radius: 0 0 20px 20px;
   align-items: center;
   gap: 1rem;
+  border-top: 1px solid var(--border-color);
 }
 
 .AccountbarAvatar {
@@ -217,6 +239,7 @@ html,body {
 }
 
 .Groups {
-  height: 85%;
+  flex: 1;
   padding: 1rem;
+  overflow-y: auto;
 }

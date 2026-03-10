@@ -4,10 +4,9 @@ import { ZariumConfig } from "../ZariumConfig";
 import { User } from "./entities/User";
 import {UserSession} from "./entities/UserSessions";
 import path from "node:path";
-import {UserTOTP} from "./entities/UserTOTP";
 import {UserAvatar} from "./entities/UserAvatar";
 
-const entities = [User, UserTOTP, UserSession, UserAvatar];
+const entities = [User, UserSession, UserAvatar];
 
 export class Database {
     private static instance: Database;

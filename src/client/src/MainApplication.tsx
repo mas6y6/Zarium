@@ -1,5 +1,5 @@
 import {animationCooldown, fetchWithCsrf} from "./utils";
-import {SetupInit} from "./modals/setup";
+import {SuperAdminSetupInit} from "./modals/setup";
 import React from "react";
 import {modalContainerRef, notificationRef, ZariumRef, setSuperadminStatus} from "./App";
 import {LoadingModal} from "./UI";
@@ -26,7 +26,7 @@ export async function MainApplication() {
 
     await animationCooldown();
     if (server_status.firstStart == true) {
-        modalContainerRef.current?.set(<SetupInit />);
+        modalContainerRef.current?.set(<SuperAdminSetupInit />);
     } else {
         const auth = await authCheck();
         if (!auth.success) {

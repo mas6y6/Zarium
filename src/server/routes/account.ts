@@ -44,9 +44,19 @@ safeRoute(server.app, '/api/auth/password_auth', 'post', async (req: SafeRequest
     const userRepo = ZariumServer.getInstance().database.dataSource.getRepository(User);
     const userSessionRepo = ZariumServer.getInstance().database.dataSource.getRepository(UserSession);
     const user = await userRepo.findOne({where: {username: req.body.username}});
-    if (!user) return res.status(401).json({ detail: "Invalid credentials" });
 
-    if (!(await user.checkPassword(req.body.password))) return res.status(401).json({ detail: "Invalid credentials" });
+    const passwordToCheck = req.body.password;
+    if (user) {
+        if (!(await user.checkPassword(passwordToCheck))) {
+            return res.status(401).json({ detail: "Invalid credentials" });
+        }
+    } else {
+        // dummy verify with a static random string to consume time
+        const dummyHash = "$argon2id$v=19$m=65536,t=3,p=4$K9l32lEaJ7hK7eC/sU7Y1g$O0y7R3q+u18tGz/2kXoM3eW9K9E3M0J6wZ2hB9U/a1E";
+        await require('argon2').verify(dummyHash, passwordToCheck).catch(() => {});
+        return res.status(401).json({ detail: "Invalid credentials" });
+    }
+
     const session = await user.createSession(req.headers["user-agent"]);
     const access_token = await (await userSessionRepo.findOne({
         where: {
@@ -78,6 +88,8 @@ safeRoute(server.app, '/api/auth/password_auth', 'post', async (req: SafeRequest
     res.send({
         user_id: user.id
     });
+}, {
+    middleware: [server.authLimiter]
 })
 
 safeRoute(server.app, '/api/auth/refresh', 'post', async (req: SafeRequest,res) => {
@@ -173,7 +185,7 @@ safeRoute(server.app, '/api/auth/get-user-data', 'get', async (req: SafeRequest,
     res.send({
         id: user?.id,
         username: user?.username,
-        displayname: user?.displayname,
+        displayname: user?.displayName,
         superadmin: user?.superadmin,
         createdAt: user?.createdAt,
         perms: user?.perms,
@@ -249,18 +261,61 @@ safeRoute(server.app, '/api/account/avatar', 'post', async (req: SafeRequest, re
     require_auth: true
 });
 
-safeRoute(server.app, '/api/auth/get_auth_methods', 'post', async (req: SafeRequest,res) => {
+safeRoute(server.app, '/api/auth/get_account_status', 'post', async (req: SafeRequest,res) => {
     if (!requireJson(req,res)) return;
 
-    let methods: string[] = [];
     const userRepo = ZariumServer.getInstance().database.dataSource.getRepository(User);
     const user = await userRepo.findOne({where: {username: req.body.username}});
-    if (!user) return res.status(401).json({ detail: "User not found." });
 
-    methods.push("password");
+    if (!user) {
+        return res.send({
+            username: req.body.username,
+            setup: false,
+        });
+    }
 
     res.send({
         username: req.body.username,
-        methods: methods
+        setup: user.setup,
     })
+}, {
+    middleware: [server.authLimiter]
+});
+
+safeRoute(server.app, '/api/auth/setup_account', 'post', async (req: SafeRequest, res) => {
+    if (!requireJson(req, res)) return;
+
+    const { username, password, newPassword } = req.body;
+    if (!username || !password || !newPassword) {
+        return res.status(400).json({ detail: "Please fill out all fields." });
+    }
+
+    if (newPassword.length < 12) {
+        return res.status(400).json({ detail: "New password must be at least 12 characters long." });
+    }
+
+    const userRepo = ZariumServer.getInstance().database.dataSource.getRepository(User);
+    const user = await userRepo.findOne({ where: { username } });
+
+    if (!user) {
+        return res.status(401).json({ detail: "Invalid credentials" });
+    }
+
+    if (!user.setup) {
+        return res.status(400).json({ detail: "Account is already set up." });
+    }
+
+    try {
+        await user.updatePassword(password, newPassword);
+        user.setup = false;
+        await userRepo.save(user);
+
+        ZariumServer.getInstance().logger.info(`User \"${user.username}\" has completed account setup.`);
+
+        res.send({ detail: "Account setup complete." });
+    } catch (e: any) {
+        res.status(401).json({ detail: e.message || "Invalid credentials" });
+    }
+}, {
+    middleware: [server.authLimiter]
 });

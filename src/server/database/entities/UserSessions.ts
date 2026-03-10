@@ -3,7 +3,7 @@ import { User } from "./User";
 import {ZariumServer} from "../../ZariumServer";
 import {UserJwtPayload} from "../../utils";
 import jwt from "jsonwebtoken";
-import bcrypt from "bcrypt";
+import argon2 from "argon2";
 
 @Entity("user_sessions")
 export class UserSession {
@@ -64,13 +64,13 @@ export class UserSession {
     }
 
     async checkSession(token: string) {
-        return bcrypt.compare(token, this.refreshTokenHash);
+        return argon2.verify(this.refreshTokenHash, token);
     }
 
     async checkRefreshToken(refreshToken: string) {
         if (this.revoked) return false;
         if (this.expiresAt < new Date()) return false;
-        return await bcrypt.compare(refreshToken, this.refreshTokenHash);
+        return await argon2.verify(this.refreshTokenHash, refreshToken);
     }
 
     async revoke() {

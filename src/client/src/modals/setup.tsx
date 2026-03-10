@@ -4,7 +4,7 @@ import {modalContainerRef, notificationRef, setSuperadminStatus} from "../App";
 import {animationCooldown, fetchWithCsrf} from "../utils";
 import {authCheck, renderApplication} from "../MainApplication";
 
-export function SetupInit() {
+export function SuperAdminSetupInit() {
     const entry = useRef<HTMLInputElement>(null);
     const button = useRef<HTMLButtonElement>(null);
     const modal = useRef<ModalHandle>(null);
@@ -49,7 +49,7 @@ export function SetupInit() {
                 content: data.detail,
                 type: "error"
             });
-            modalContainerRef?.current?.set(<SetupInit/>);
+            modalContainerRef?.current?.set(<SuperAdminSetupInit/>);
         }
     }
 
@@ -157,6 +157,10 @@ export function SetupAdminAccountCreation({superAdminKey}: SetupAdminAccountCrea
             <h1>Server SuperAdmin creation</h1>
             <p>
                 Please enter your account details to create this server's SuperAdmin account.
+            </p>
+
+            <p style={{ color: "red" }}>
+                <b>Warning:</b> If you forget your password, you will permanently lose access to this account and all data on the server.
             </p>
 
             <div style={{display: "flex", flexDirection: "column", gap: "10px"}}>

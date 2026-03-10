@@ -1,7 +1,6 @@
 import {parseTime, requireJson, safeRoute} from "../utils";
 import {ZariumServer} from "../ZariumServer";
 import {User} from "../database/entities/User";
-import bcrypt from "bcrypt";
 import {UserSession} from "../database/entities/UserSessions";
 const server:ZariumServer = ZariumServer.getInstance();
 
@@ -26,6 +25,8 @@ safeRoute(server.app, '/api/setup/check-superadmin-key', 'post', async (req,res)
             })
         }
     }
+}, {
+    middleware: [server.authLimiter]
 });
 
 safeRoute(server.app, '/api/setup/create-superadmin', 'post', async (req,res) => {
@@ -42,19 +43,27 @@ safeRoute(server.app, '/api/setup/create-superadmin', 'post', async (req,res) =>
                 success: false,
                 detail: "Invalid superadmin key."
             })
+            return;
+        }
+
+        if (req.body.password.length < 12) {
+            return res.status(400).json({
+                success: false,
+                detail: "Password must be at least 12 characters long."
+            });
         }
 
         const userRepo = ZariumServer.getInstance().database.dataSource.getRepository(User);
         const userSessionRepo = ZariumServer.getInstance().database.dataSource.getRepository(UserSession);
-        const passwordHash = await bcrypt.hash(req.body.password, 10);
-        const user = userRepo.create({
-            username: req.body.username,
-            displayname: req.body.displayName,
-            perms: "",
-            superadmin: true,
-            password: passwordHash,
-        });
 
+        const user = await User.createAccount(
+            req.body.username,
+            req.body.password,
+            req.body.displayName,
+            ""
+        );
+
+        user.superadmin = true;
         await userRepo.save(user);
 
         server.firstStart = false;
@@ -95,4 +104,6 @@ safeRoute(server.app, '/api/setup/create-superadmin', 'post', async (req,res) =>
             id: user.id
         })
     }
+}, {
+    middleware: [server.authLimiter]
 });

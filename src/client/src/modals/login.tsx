@@ -1,8 +1,9 @@
-import React, {createRef} from "react";
-import {Button, Entry, LoadingModal, Modal, ModalHandle, PasswordEntry} from "../UI";
-import {animationCooldown, fetchWithCsrf} from "../utils";
-import {modalContainerRef, notificationRef, setSuperadminStatus} from "../App";
-import {authCheck, renderApplication} from "../MainApplication";
+import React, { useRef } from "react";
+import { Button, Entry, LoadingModal, Modal, ModalHandle, PasswordEntry } from "../UI";
+import { animationCooldown, fetchWithCsrf } from "../utils";
+import { modalContainerRef, notificationRef, setSuperadminStatus } from "../App";
+import { authCheck, renderApplication } from "../MainApplication";
+import {SuperAdminSetupInit} from "./setup";
 
 interface LoginModalProps {
     motd: string;
@@ -19,8 +20,8 @@ interface AuthMethodsResponse {
 }
 
 export function LoginInit(props: LoginModalProps) {
-    const usernameEntry = React.createRef<HTMLInputElement>();
-    const modal = React.createRef<ModalHandle>();
+    const usernameEntry = useRef<HTMLInputElement>(null);
+    const modal = useRef<ModalHandle>(null);
 
     async function onContinue() {
         const username = usernameEntry.current?.value.trim();
@@ -33,42 +34,42 @@ export function LoginInit(props: LoginModalProps) {
             return;
         }
 
-        const loadingModalRef = createRef<ModalHandle>();
-        modalContainerRef?.current?.set(<LoadingModal ref={loadingModalRef}/>);
+        const loadingModalRef = React.createRef<ModalHandle>();
+        modalContainerRef?.current?.set(<LoadingModal ref={loadingModalRef} />);
         await animationCooldown();
 
         try {
-            const res = await fetchWithCsrf("/api/auth/get_auth_methods", {
+            const res = await fetchWithCsrf("/api/auth/get_account_status", {
                 method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({username})
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username })
             });
 
             const data = await res.json();
+
             if (!res.ok) {
                 notificationRef.current?.add({
                     title: "Error",
                     content: data.detail || "An unknown error occurred.",
                     type: "error"
                 });
-                await animationCooldown();
                 modalContainerRef?.current?.set(<LoginInit {...props} />);
                 return;
             }
 
-            await animationCooldown();
-            modalContainerRef?.current?.set(
-                <LoginMethods 
-                    response={{...data, motd: props.motd, version: props.version}} 
-                />
-            );
+            if (data.setup) {
+                modalContainerRef?.current?.set(<SetupInit response={{ ...data, motd: props.motd, version: props.version }} />);
+            } else {
+                modalContainerRef?.current?.set(
+                    <LoginPassword response={{ ...data, motd: props.motd, version: props.version }} />
+                );
+            }
         } catch (e) {
             notificationRef.current?.add({
                 title: "Error",
                 content: "A connection error occurred.",
                 type: "error"
             });
-            await animationCooldown();
             modalContainerRef?.current?.set(<LoginInit {...props} />);
         }
     }
@@ -79,61 +80,19 @@ export function LoginInit(props: LoginModalProps) {
             <p>{props.motd}</p>
             <p>Please enter your username to continue.</p>
 
-            <div style={{display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start'}}>
-                <Entry ref={usernameEntry} placeholder="Username"/>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
+                <Entry ref={usernameEntry} placeholder="Username" />
                 <Button onClick={onContinue}>Continue</Button>
             </div>
 
-            <p className="subtext" style={{marginTop: '0.5rem'}}>Zarium Version: {props.version}</p>
-        </Modal>
-    );
-}
-
-export function LoginMethods(props: { response: AuthMethodsResponse }) {
-    const modal = React.createRef<ModalHandle>();
-
-    const onBack = async () => {
-        modal.current?.hideModal();
-        await animationCooldown();
-        modalContainerRef?.current?.set(
-            <LoginInit 
-                motd={props.response.motd || ""} 
-                version={props.response.version || ""} 
-            />
-        );
-    };
-
-    const onSelectPassword = async () => {
-        modal.current?.hideModal();
-        await animationCooldown();
-        modalContainerRef?.current?.set(<LoginPassword response={props.response}/>);
-    };
-
-    return (
-        <Modal ref={modal}>
-            <h1>Choose a sign in method</h1>
-            <p>Please select a sign in method.</p>
-            <p>Account username: {props.response.username}</p>
-
-            <div style={{display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start'}}>
-                {props.response.passkey && (
-                    <Button onClick={async () => {}} color="primary">Passkey</Button>
-                )}
-                {props.response.totp && (
-                    <Button onClick={async () => {}} color="primary">TOTP</Button>
-                )}
-                {props.response.password && (
-                    <Button onClick={onSelectPassword} color="primary">Password</Button>
-                )}
-                <Button onClick={onBack} color="secondary">Back</Button>
-            </div>
+            <p className="subtext" style={{ marginTop: '0.5rem' }}>Zarium Version: {props.version}</p>
         </Modal>
     );
 }
 
 export function LoginPassword(props: { response: AuthMethodsResponse }) {
-    const modal = React.createRef<ModalHandle>();
-    const passwordEntry = React.createRef<HTMLInputElement>();
+    const modal = useRef<ModalHandle>(null);
+    const passwordEntry = useRef<HTMLInputElement>(null);
 
     async function onSignIn() {
         const password = passwordEntry.current?.value.trim();
@@ -147,14 +106,14 @@ export function LoginPassword(props: { response: AuthMethodsResponse }) {
         }
 
         modal.current?.hideModal();
-        const loadingModalRef = createRef<ModalHandle>();
-        modalContainerRef?.current?.set(<LoadingModal ref={loadingModalRef}/>);
+        const loadingModalRef = React.createRef<ModalHandle>();
+        modalContainerRef?.current?.set(<LoadingModal ref={loadingModalRef} />);
         await animationCooldown();
 
         try {
             const res = await fetchWithCsrf("/api/auth/password_auth", {
                 method: "POST",
-                headers: {"Content-Type": "application/json"},
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     username: props.response.username,
                     password
@@ -168,8 +127,7 @@ export function LoginPassword(props: { response: AuthMethodsResponse }) {
                     content: data.detail || "An unknown error occurred.",
                     type: "error"
                 });
-                await animationCooldown();
-                modalContainerRef?.current?.set(<LoginPassword response={props.response}/>);
+                modalContainerRef?.current?.set(<LoginPassword response={props.response} />);
                 return;
             }
 
@@ -177,8 +135,8 @@ export function LoginPassword(props: { response: AuthMethodsResponse }) {
             if (auth.success) {
                 setSuperadminStatus(auth.superadmin || false);
             }
-            await animationCooldown();
-            modalContainerRef.current?.close();
+
+            modalContainerRef?.current?.close();
             await renderApplication();
         } catch (e) {
             notificationRef.current?.add({
@@ -186,8 +144,7 @@ export function LoginPassword(props: { response: AuthMethodsResponse }) {
                 content: "A connection error occurred.",
                 type: "error"
             });
-            await animationCooldown();
-            modalContainerRef?.current?.set(<LoginPassword response={props.response}/>);
+            modalContainerRef?.current?.set(<LoginPassword response={props.response} />);
         }
     }
 
@@ -197,14 +154,138 @@ export function LoginPassword(props: { response: AuthMethodsResponse }) {
             <p>Please enter your password to continue.</p>
             <p>Account username: {props.response.username}</p>
 
-            <div style={{display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start'}}>
-                <PasswordEntry ref={passwordEntry} placeholder="Password"/>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
+                <PasswordEntry ref={passwordEntry} placeholder="Password" />
                 <Button onClick={onSignIn} color="primary">Sign in</Button>
-                <Button onClick={async () => {
-                    modal.current?.hideModal();
-                    await animationCooldown();
-                    modalContainerRef?.current?.set(<LoginMethods response={props.response}/>);
-                }} color="secondary">Back</Button>
+                <Button
+                    onClick={async () => {
+                        modal.current?.hideModal();
+                        await animationCooldown();
+                        modalContainerRef?.current?.set(<LoginInit motd={props.response.motd || ""} version={props.response.version || ""} />);
+                    }}
+                    color="secondary"
+                >
+                    Back
+                </Button>
+            </div>
+        </Modal>
+    );
+}
+
+export function SetupInit(props: { response: AuthMethodsResponse }) {
+    const passwordEntry = useRef<HTMLInputElement>(null);
+    const newPasswordEntry = useRef<HTMLInputElement>(null);
+    const reEnterPasswordEntry = useRef<HTMLInputElement>(null);
+    const modal = useRef<ModalHandle>(null);
+
+    async function signIn() {
+        const password = passwordEntry.current?.value.trim();
+        const newPassword = newPasswordEntry.current?.value.trim();
+        const reEnterPassword = reEnterPasswordEntry.current?.value.trim();
+
+        // Basic validation
+        if (!password || !newPassword || !reEnterPassword) {
+            notificationRef.current?.add({
+                title: "Error",
+                content: "Please fill out all fields.",
+                type: "error"
+            });
+            return;
+        }
+
+        if (newPassword !== reEnterPassword) {
+            notificationRef.current?.add({
+                title: "Error",
+                content: "New password and re-entered password do not match.",
+                type: "error"
+            });
+            return;
+        }
+
+        if (newPassword.length < 12) {
+            notificationRef.current?.add({
+                title: "Error",
+                content: "Password must be at least 12 characters long.",
+                type: "error"
+            });
+            return;
+        }
+
+        // Proceed with loading
+        modal.current?.hideModal();
+        const loadingModalRef = React.createRef<ModalHandle>();
+        modalContainerRef?.current?.set(<LoadingModal ref={loadingModalRef} />);
+        await animationCooldown();
+
+        try {
+            const res = await fetchWithCsrf("/api/auth/setup_account", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    username: props.response.username,
+                    password,
+                    newPassword
+                })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                notificationRef.current?.add({
+                    title: "Error",
+                    content: data.detail || "An unknown error occurred.",
+                    type: "error"
+                });
+                modalContainerRef?.current?.set(<SetupInit response={props.response} />);
+                return;
+            }
+
+            modalContainerRef?.current?.set(<Modal>
+                <h1>Account Setup Complete</h1>
+                <p>Your account's password has been changed.</p>
+                <p>Please reload this page and sign in with your username and password.</p>
+                <Button onClick={() => window.location.reload()}>Reload</Button>
+            </Modal>);
+        } catch (e) {
+            notificationRef.current?.add({
+                title: "Error",
+                content: "A connection error occurred.",
+                type: "error"
+            });
+            modalContainerRef?.current?.set(<SetupInit response={props.response} />);
+        }
+    }
+
+    return (
+        <Modal ref={modal}>
+            <h1>Account Setup</h1>
+            <p>
+                This account was created by the server operator. For your privacy and security, you must change your password.
+            </p>
+            <p>
+                To continue with setup, enter the temporary password provided by the server operator. You will then be prompted to set a new password.
+            </p>
+            <p>
+                <b>Important:</b> If you forget your password, your account cannot be recovered. Please store it safely.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
+                <PasswordEntry ref={passwordEntry} placeholder="Temporary Password" />
+                <PasswordEntry ref={newPasswordEntry} placeholder="New Password" />
+                <PasswordEntry ref={reEnterPasswordEntry} placeholder="Re-enter New Password" />
+                <Button onClick={signIn} color="primary">Sign in</Button>
+                <Button
+                    onClick={async () => {
+                        modal.current?.hideModal();
+                        await animationCooldown();
+                        modalContainerRef?.current?.set(
+                            <LoginInit motd={props.response.motd || ""} version={props.response.version || ""} />
+                        );
+                    }}
+                    color="secondary"
+                >
+                    Back
+                </Button>
             </div>
         </Modal>
     );

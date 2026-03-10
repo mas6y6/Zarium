@@ -63,10 +63,12 @@ export function safeRoute(
     path: string,
     method: HttpMethod,
     handler: RequestHandler,
-    options = { require_auth: false }
+    options: { require_auth?: boolean, middleware?: RequestHandler[] } = { require_auth: false }
 ) {
-    const wrappedHandler: RequestHandler = options.require_auth
-        ? (req: SafeRequest, res, next) => {
+    let middlewares: RequestHandler[] = options.middleware || [];
+
+    if (options.require_auth) {
+        const authMiddleware: RequestHandler = (req: SafeRequest, res, next) => {
             let token: string | undefined;
 
             const authHeader = req.headers.authorization;
@@ -78,18 +80,17 @@ export function safeRoute(
 
             if (!token) return res.status(401).json({ detail: "Missing access token" });
 
-            // TODO: Actually check if the token is valid
-
             try {
                 req.user = jwt.verify(token, ZariumServer.getInstance().ACCESS_TOKEN_SECRET) as UserJwtPayload;
-                handler(req, res, next);
+                next();
             } catch {
                 return res.status(401).json({ detail: "Invalid or expired token" });
             }
-        }
-        : handler;
+        };
+        middlewares.push(authMiddleware);
+    }
 
-    app[method](path, wrappedHandler);
+    app[method](path, ...middlewares, handler);
 
     const allMethods: HttpMethod[] = ["get", "post", "put", "delete", "patch", "options", "head"];
     allMethods

@@ -1,6 +1,6 @@
 import React, {JSX, useImperativeHandle, useState, useRef} from "react";
 import {Button} from "./UI";
-import {ArrowLeft, People, Settings, Shield} from "./Icons";
+import {AdminIcon, ArrowLeft, People, Plus, Search, Settings, User} from "./Icons";
 import profileImg from "../../server/assets/img/profile.png";
 import {fetchWithCsrf} from "./utils";
 
@@ -46,7 +46,7 @@ export const Zarium = React.forwardRef<ZariumHandle, ZariumProps>((props, ref) =
                 </Button>
                 {props.superadmin && (
                     <Button color="primary">
-                        <Shield/>
+                        <AdminIcon/>
                     </Button>
                 )}
             </Topbar>
@@ -127,52 +127,11 @@ export interface AccountbarProps {
 
 export function Accountbar(props: AccountbarProps) {
     const profile = `/api/get-avatar?id=${props.id}`;
-    const [avatarUrl, setAvatarUrl] = useState(profile);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const handleError = () => {
-        setAvatarUrl(profileImg);
-    };
-
-    const handleAvatarClick = () => {
-        fileInputRef.current?.click();
-    };
-
-    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        try {
-            const response = await fetchWithCsrf("/api/account/avatar", {
-                method: "POST",
-                headers: {
-                    "Content-Type": file.type
-                },
-                body: file
-            });
-
-            if (response.ok) {
-                // Refresh avatar by appending a timestamp to bypass cache
-                setAvatarUrl(`${profile}&t=${new Date().getTime()}`);
-            } else {
-                console.error("Failed to upload avatar");
-            }
-        } catch (error) {
-            console.error("Error uploading avatar:", error);
-        }
-    };
 
     return (
         <div className="Accountbar">
-            <div className="AccountbarAvatar" onClick={handleAvatarClick} style={{cursor: 'pointer'}}>
-                <img src={avatarUrl} alt="Avatar" onError={handleError} />
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    style={{display: 'none'}}
-                    accept="image/*"
-                    onChange={handleFileChange}
-                />
+            <div className="AccountbarAvatar">
+                <img src={profile} alt="Avatar" />
             </div>
             <div className="AccountbarInfo">
                 <div className="AccountbarName">{props.displayname}</div>

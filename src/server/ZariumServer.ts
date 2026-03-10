@@ -38,6 +38,14 @@ export class ZariumServer {
     public ACCESS_TOKEN_EXPIRATION_TIME: string = "10m";
     public REFRESH_TOKEN_EXPIRATION_TIME: string = "7d";
 
+    public authLimiter = rateLimit({
+        windowMs: 15 * 60 * 1000, // 15 minutes
+        max: 20, // limit each IP to 20 requests per windowMs for auth routes
+        message: { detail: "Too many authentication attempts, please try again later." },
+        standardHeaders: true,
+        legacyHeaders: false,
+    });
+
     public static getInstance(): ZariumServer {
         if (!ZariumServer.instance) {
             throw new Error("ZariumServer instance not initialized");
