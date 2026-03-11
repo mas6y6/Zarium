@@ -8,11 +8,11 @@ async function handleLogout() {
     modalContainerRef.current?.set(<Modal>
         <h1>Logout</h1>
         <p>Are you sure you want to logout?</p>
-        <div>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
             <Button color="danger" onClick={logout}>
                 Logout
             </Button>
-            <Button color="secondary" onClick={() => modalContainerRef.current?.close()}>
+            <Button color="secondary" onClick={() => modalContainerRef.current?.set(<SettingsModal />)}>
                 Cancel
             </Button>
         </div>
