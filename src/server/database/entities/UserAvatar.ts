@@ -6,10 +6,10 @@ export class UserAvatar {
     @PrimaryColumn("uuid")
     id!: string;
 
-    @Column({ type: "varchar", length: 128 })
+    @Column()
     mimetype!: string;
 
     @OneToOne(() => User, user => user.avatar)
-    @JoinColumn({ name: "id" }) // link by same UUID
+    @JoinColumn({ name: "id" })
     user!: User;
 }

@@ -5,8 +5,10 @@ import {UserAvatar} from "../database/entities/UserAvatar";
 import {UserSession} from "../database/entities/UserSessions";
 import {UserJwtPayload} from "../utils";
 import jwt from "jsonwebtoken";
+import { Encryption } from "../Encryption";
 import fs from "fs/promises";
 import path from "path";
+import {UserVault} from "../database/entities/UserVault";
 
 const server:ZariumServer = ZariumServer.getInstance();
 
@@ -53,7 +55,7 @@ safeRoute(server.app, '/api/auth/password_auth', 'post', async (req: SafeRequest
     } else {
         // dummy verify with a static random string to consume time
         const dummyHash = "$argon2id$v=19$m=65536,t=3,p=4$K9l32lEaJ7hK7eC/sU7Y1g$O0y7R3q+u18tGz/2kXoM3eW9K9E3M0J6wZ2hB9U/a1E";
-        await require('argon2').verify(dummyHash, passwordToCheck).catch(() => {});
+        await Encryption.verifyPassword(dummyHash, passwordToCheck).catch(() => {});
         return res.status(401).json({ detail: "Invalid credentials" });
     }
 
@@ -86,7 +88,11 @@ safeRoute(server.app, '/api/auth/password_auth', 'post', async (req: SafeRequest
     });
 
     res.send({
-        user_id: user.id
+        user_id: user.id,
+        encryptedVaultKey: user.vault?.encryptedVaultKey,
+        vaultKeyIv: user.vault?.vaultKeyIv,
+        vaultKeyTag: user.vault?.vaultKeyTag,
+        vaultSalt: user.vaultSalt,
     });
 }, {
     middleware: [server.authLimiter]
@@ -189,7 +195,7 @@ safeRoute(server.app, '/api/auth/get-user-data', 'get', async (req: SafeRequest,
         superadmin: user?.superadmin,
         createdAt: user?.createdAt,
         perms: user?.perms,
-
+        setup: user?.setup
     })
 }, {
     require_auth: true
@@ -254,9 +260,58 @@ safeRoute(server.app, '/api/account/avatar', 'post', async (req: SafeRequest, re
             });
         }
 
-        await avatarRepository.save(avatar);
         res.send({ detail: "Avatar updated" });
     });
+}, {
+    require_auth: true
+});
+
+safeRoute(server.app, '/api/account/display-name', 'post', async (req: SafeRequest, res) => {
+    if (!requireJson(req, res)) return;
+    if (!req.user) return res.status(401).json({ detail: "Unauthorized" });
+
+    const { displayName } = req.body;
+    if (!displayName) {
+        return res.status(400).json({ detail: "Display name is required" });
+    }
+
+    const userRepository = ZariumServer.getInstance().database.dataSource.getRepository(User);
+    const user = await userRepository.findOne({ where: { id: req.user.userId } });
+
+    if (!user) {
+        return res.status(404).json({ detail: "User not found" });
+    }
+
+    user.displayName = displayName;
+    await userRepository.save(user);
+
+    res.send({ detail: "Display name updated" });
+}, {
+    require_auth: true
+});
+
+safeRoute(server.app, '/api/account/password', 'post', async (req: SafeRequest, res) => {
+    if (!requireJson(req, res)) return;
+    if (!req.user) return res.status(401).json({ detail: "Unauthorized" });
+
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) {
+        return res.status(400).json({ detail: "Old and new password are required" });
+    }
+
+    const userRepository = ZariumServer.getInstance().database.dataSource.getRepository(User);
+    const user = await userRepository.findOne({ where: { id: req.user.userId } });
+
+    if (!user) {
+        return res.status(404).json({ detail: "User not found" });
+    }
+
+    try {
+        await user.updatePassword(oldPassword, newPassword);
+        res.send({ detail: "Password updated" });
+    } catch (e: any) {
+        res.status(401).json({ detail: e.message || "Invalid credentials" });
+    }
 }, {
     require_auth: true
 });
@@ -318,4 +373,27 @@ safeRoute(server.app, '/api/auth/setup_account', 'post', async (req: SafeRequest
     }
 }, {
     middleware: [server.authLimiter]
+});
+
+safeRoute(server.app, '/api/auth/get_vault', 'post', async (req: SafeRequest, res) => {
+    if (!req.user) return res.status(401).json({ detail: "Unauthorized" });
+
+    const userRepo = ZariumServer.getInstance().database.dataSource.getRepository(User);
+    const vaultRepo = ZariumServer.getInstance().database.dataSource.getRepository(UserVault);
+
+    const user = await userRepo.findOne({ where: { id: req.user.userId } });
+    const vault = await vaultRepo.findOne({ where: { id: req.user.userId } });
+
+    if (!user || !vault) {
+        return res.status(404).json({ detail: "Vault not found" });
+    }
+
+    res.send({
+        vault: vault.vault,
+        vaultIv: vault.iv,
+        vaultTag: vault.tag
+    });
+}, {
+    middleware: [server.authLimiter],
+    require_auth: true
 });

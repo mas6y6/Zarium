@@ -9,6 +9,7 @@ export default defineConfig({
   build: {
     outDir: '../../dist/client',
     emptyOutDir: true,
+    sourcemap: true,
   },
   resolve: {
     alias: {
@@ -28,4 +29,10 @@ export default defineConfig({
       },
     },
   },
+  server: {
+    hmr: {
+      overlay: false
+    }
+  },
+  logLevel: 'info'
 });

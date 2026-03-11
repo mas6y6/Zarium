@@ -1,7 +1,7 @@
 import {Button, LoadingModal, Modal, ModalHandle, Entry, PasswordEntry} from "../UI";
 import React, {createRef, useRef} from "react";
 import {modalContainerRef, notificationRef, setSuperadminStatus} from "../App";
-import {animationCooldown, fetchWithCsrf} from "../utils";
+import {animationCooldown, fetchWithCsrf, obtainVaultKey} from "../utils";
 import {authCheck, renderApplication} from "../MainApplication";
 
 export function SuperAdminSetupInit() {
@@ -65,10 +65,13 @@ export function SuperAdminSetupInit() {
                 key located in your server log.
             </p>
 
-            <div style={{display: "flex", gap: "10px"}}>
+            <form 
+                onSubmit={(e) => { e.preventDefault(); onClick(); }}
+                style={{display: "flex", gap: "10px"}}
+            >
                 <Entry ref={entry} placeholder="Superadmin key"/>
-                <Button ref={button} onClick={onClick}>Continue</Button>
-            </div>
+                <Button type="submit">Continue</Button>
+            </form>
         </Modal>
     );
 }
@@ -134,18 +137,23 @@ export function SetupAdminAccountCreation({superAdminKey}: SetupAdminAccountCrea
         }));
 
         if (res.ok) {
+            const data = await res.json();
             const auth = await authCheck();
             if (auth.success) {
                 setSuperadminStatus(auth.superadmin || false);
             }
+
+            await obtainVaultKey(password, data);
+
             modalContainerRef.current?.close();
             await renderApplication();
         } else {
+            const data = await res.json();
             loadingModalRef.current?.hideModal();
             await animationCooldown();
             notificationRef.current?.add({
                 title: "Error",
-                content: (await res.json()).detail,
+                content: data.detail,
                 type: "error"
             });
             modalContainerRef?.current?.set(<SetupAdminAccountCreation superAdminKey={superAdminKey}/>);
@@ -163,12 +171,15 @@ export function SetupAdminAccountCreation({superAdminKey}: SetupAdminAccountCrea
                 <b>Warning:</b> If you forget your password, you will permanently lose access to this account and all data on the server.
             </p>
 
-            <div style={{display: "flex", flexDirection: "column", gap: "10px"}}>
+            <form 
+                onSubmit={(e) => { e.preventDefault(); onClick(); }}
+                style={{display: "flex", flexDirection: "column", gap: "10px"}}
+            >
                 <Entry ref={usernameEntry} placeholder="Username" autoComplete={"username"}/>
                 <Entry ref={displayNameEntry} placeholder="Display name"/>
                 <PasswordEntry ref={passwordEntry} placeholder="Password" autoComplete={"new-password"}/>
-                <Button className="btn btn-primary" onClick={onClick}>Create</Button>
-            </div>
+                <Button type="submit">Create</Button>
+            </form>
         </Modal>
     );
 }

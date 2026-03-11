@@ -60,11 +60,12 @@ safeRoute(server.app, '/api/setup/create-superadmin', 'post', async (req,res) =>
             req.body.username,
             req.body.password,
             req.body.displayName,
-            ""
+            "",
+            false // set setup to false as we are already in setup
         );
 
         user.superadmin = true;
-        await userRepo.save(user);
+        await ZariumServer.getInstance().database.dataSource.getRepository(User).save(user);
 
         server.firstStart = false;
 
@@ -101,7 +102,12 @@ safeRoute(server.app, '/api/setup/create-superadmin', 'post', async (req,res) =>
 
         return res.send({
             detail: "Superadmin account created.",
-            id: user.id
+            id: user.id,
+            username: user.username,
+            vaultSalt: user.vaultSalt,
+            encryptedVaultKey: user.vault?.encryptedVaultKey,
+            vaultKeyIv: user.vault?.vaultKeyIv,
+            vaultKeyTag: user.vault?.vaultKeyTag
         })
     }
 }, {

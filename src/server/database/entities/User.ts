@@ -1,14 +1,24 @@
-import {Entity, Column, PrimaryGeneratedColumn, OneToOne, OneToMany} from "typeorm";
-import {UserAvatar} from "./UserAvatar";
-import {UserSession} from "./UserSessions";
-import {ZariumServer} from "../../ZariumServer";
-import argon2 from "argon2";
-import {parseTime} from "../../utils";
-import crypto from "crypto";
+import {
+    Entity,
+    Column,
+    PrimaryGeneratedColumn,
+    OneToOne,
+    OneToMany
+} from "typeorm";
+
+import { Encryption } from "../../Encryption";
 import { v4 as uuidv4 } from "uuid";
+
+import { ZariumServer } from "../../ZariumServer";
+import { parseTime } from "../../utils";
+
+import { UserAvatar } from "./UserAvatar";
+import { UserSession } from "./UserSessions";
+import { UserVault } from "./UserVault";
 
 @Entity("users")
 export class User {
+
     @PrimaryGeneratedColumn("uuid")
     id!: string;
 
@@ -33,173 +43,160 @@ export class User {
     @Column({ nullable: true })
     vaultSalt?: string;
 
-    @Column({ nullable: true })
-    encryptedVaultKey?: string;
-
-    @Column({ nullable: true })
-    vaultIv?: string;
-
-    @Column({ nullable: true })
-    vaultTag?: string;
-
     @Column({ default: false })
     setup!: boolean;
 
     @OneToOne(() => UserAvatar, avatar => avatar.user, { cascade: true })
     avatar?: UserAvatar;
 
+    @OneToOne(() => UserVault, vault => vault.user, { cascade: true, eager: true })
+    vault!: UserVault;
+
     @OneToMany(() => UserSession, session => session.user)
-    sessions!: UserSession[];
+    sessions!: UserSession;
+
+    /* ----------------------------- Utilities ----------------------------- */
+
+    /* --------------------------- Account Create -------------------------- */
 
     static async createAccount(
         username: string,
         password: string,
         displayName: string,
-        perms: string = "",
+        perms = "",
         setup = true
     ) {
         const repo = ZariumServer.getInstance().database.dataSource.getRepository(User);
 
-        const passwordHash = await argon2.hash(password);
+        const passwordHash = await Encryption.hashPassword(password);
 
-        const vaultSalt = crypto.randomBytes(16);
+        const vaultSalt = Encryption.randomBytes(16);
 
-        const passwordKey = await argon2.hash(password, {
-            salt: vaultSalt,
-            raw: true,
-            hashLength: 32,
-            type: argon2.argon2id
-        });
+        const passwordKey = await Encryption.deriveKey(password, vaultSalt);
 
-        const vaultKey = crypto.randomBytes(32);
+        const vaultKey = Encryption.randomBytes(32);
 
-        const iv = crypto.randomBytes(12);
-
-        const cipher = crypto.createCipheriv("aes-256-gcm", passwordKey, iv);
-
-        const encryptedVaultKey = Buffer.concat([
-            cipher.update(vaultKey),
-            cipher.final()
-        ]);
-
-        const tag = cipher.getAuthTag();
+        const wrapped = Encryption.encrypt(vaultKey, passwordKey);
 
         const user = repo.create({
+            id: uuidv4(),
             username,
             displayName,
             perms,
             passwordHash,
-
             vaultSalt: vaultSalt.toString("base64"),
-            encryptedVaultKey: encryptedVaultKey.toString("base64"),
-            vaultIv: iv.toString("base64"),
-            vaultTag: tag.toString("base64"),
-            setup: setup
+            setup
         });
+
+        const vaultRepo = ZariumServer.getInstance().database.dataSource.getRepository(UserVault);
+        const vault = vaultRepo.create({
+            id: user.id,
+            encryptedVaultKey: wrapped.encrypted.toString("base64"),
+            vaultKeyIv: wrapped.iv.toString("base64"),
+            vaultKeyTag: wrapped.tag.toString("base64"),
+            vault: "" // empty vault for new user
+        });
+
+        user.vault = vault;
 
         await repo.save(user);
 
         return user;
     }
 
-    async updatePerms(bitfield: string) {
-        const userRepo = ZariumServer.getInstance().database.dataSource.getRepository(User);
-        await userRepo.update(this.id, {perms: bitfield});
-    }
+    /* ---------------------------- Password Ops --------------------------- */
 
     async updatePassword(oldPassword: string, newPassword: string) {
-        if (!(await argon2.verify(this.passwordHash, oldPassword)))
+
+        if (!(await Encryption.verifyPassword(this.passwordHash, oldPassword))) {
             throw new Error("Invalid password");
+        }
 
         const salt = Buffer.from(this.vaultSalt!, "base64");
 
-        const oldKey = await argon2.hash(oldPassword, {
-            salt,
-            raw: true,
-            hashLength: 32,
-            type: argon2.argon2id
-        });
+        const oldPasswordKey = await Encryption.deriveKey(oldPassword, salt);
 
-        const decipher = crypto.createDecipheriv(
-            "aes-256-gcm",
-            oldKey,
-            Buffer.from(this.vaultIv!, "base64")
+        const vaultKey = Encryption.decrypt(
+            Buffer.from(this.vault!.encryptedVaultKey!, "base64"),
+            oldPasswordKey,
+            Buffer.from(this.vault!.vaultKeyIv!, "base64"),
+            Buffer.from(this.vault!.vaultKeyTag!, "base64")
         );
 
-        decipher.setAuthTag(Buffer.from(this.vaultTag!, "base64"));
+        const newSalt = Encryption.randomBytes(16);
 
-        const vaultKey = Buffer.concat([
-            decipher.update(Buffer.from(this.encryptedVaultKey!, "base64")),
-            decipher.final()
-        ]);
+        const newPasswordKey = await Encryption.deriveKey(newPassword, newSalt);
 
-        const newSalt = crypto.randomBytes(16);
-
-        const newKey = await argon2.hash(newPassword, {
-            salt: newSalt,
-            raw: true,
-            hashLength: 32,
-            type: argon2.argon2id
-        });
-
-        const iv = crypto.randomBytes(12);
-
-        const cipher = crypto.createCipheriv("aes-256-gcm", newKey, iv);
-
-        const encryptedVaultKey = Buffer.concat([
-            cipher.update(vaultKey),
-            cipher.final()
-        ]);
-
-        const tag = cipher.getAuthTag();
+        const wrapped = Encryption.encrypt(vaultKey, newPasswordKey);
 
         const repo = ZariumServer.getInstance().database.dataSource.getRepository(User);
+        const vaultRepo = ZariumServer.getInstance().database.dataSource.getRepository(UserVault);
 
-        await repo.update(this.id, {
-            passwordHash: await argon2.hash(newPassword),
-            vaultSalt: newSalt.toString("base64"),
-            encryptedVaultKey: encryptedVaultKey.toString("base64"),
-            vaultIv: iv.toString("base64"),
-            vaultTag: tag.toString("base64")
-        });
+        this.passwordHash = await Encryption.hashPassword(newPassword);
+        this.vaultSalt = newSalt.toString("base64");
+
+        await repo.save(this);
+
+        this.vault!.encryptedVaultKey = wrapped.encrypted.toString("base64");
+        this.vault!.vaultKeyIv = wrapped.iv.toString("base64");
+        this.vault!.vaultKeyTag = wrapped.tag.toString("base64");
+
+        await vaultRepo.save(this.vault!);
     }
 
+    /* --------------------------- User Lookups --------------------------- */
+
     static async getUserById(id: string) {
-        const userRepo = ZariumServer.getInstance().database.dataSource.getRepository(User);
-        return userRepo.findOne({ where: { id } });
+        const repo = ZariumServer.getInstance().database.dataSource.getRepository(User);
+        return repo.findOne({ where: { id } });
     }
 
     static async getUserByUsername(username: string) {
-        const userRepo = ZariumServer.getInstance().database.dataSource.getRepository(User);
-        return userRepo.findOne({ where: { username } });
+        const repo = ZariumServer.getInstance().database.dataSource.getRepository(User);
+        return repo.findOne({ where: { username } });
     }
 
     async checkPassword(password: string) {
-        return argon2.verify(this.passwordHash, password);
+        return Encryption.verifyPassword(this.passwordHash, password);
     }
 
+    /* ----------------------------- Sessions ----------------------------- */
+
     async createSession(userAgent?: string) {
-        const userSessionRepo = ZariumServer.getInstance().database.dataSource.getRepository(UserSession);
 
-        const refreshToken = crypto.randomBytes(32).toString("hex");
-        const refreshTokenHash = await argon2.hash(refreshToken);
+        const repo = ZariumServer.getInstance().database.dataSource.getRepository(UserSession);
 
-        const session = userSessionRepo.create({
+        const refreshToken = Encryption.randomBytes(32).toString("hex");
+        const refreshTokenHash = await Encryption.hashPassword(refreshToken);
+
+        const session = repo.create({
             userId: this.id,
-            refreshTokenHash: refreshTokenHash,
+            refreshTokenHash,
             refreshTokenKey: uuidv4(),
-            expiresAt: new Date(Date.now() + parseTime(ZariumServer.getInstance().REFRESH_TOKEN_EXPIRATION_TIME)),
-            userAgent: userAgent,
+            expiresAt: new Date(
+                Date.now() +
+                parseTime(ZariumServer.getInstance().REFRESH_TOKEN_EXPIRATION_TIME)
+            ),
+            userAgent
         });
 
-        await userSessionRepo.save(session);
+        await repo.save(session);
 
         return {
             id: session.id,
             userId: session.userId,
             expiresAt: session.expiresAt,
-            refreshToken: refreshToken,
-            refreshKey: session.refreshTokenKey,
+            refreshToken,
+            refreshKey: session.refreshTokenKey
         };
     }
+
+    /* ----------------------------- Perms ----------------------------- */
+
+    async updatePerms(bitfield: string) {
+        const repo = ZariumServer.getInstance().database.dataSource.getRepository(User);
+        this.perms = bitfield;
+        await repo.save(this);
+    }
+
 }

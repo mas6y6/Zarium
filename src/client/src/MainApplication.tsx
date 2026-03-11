@@ -1,10 +1,11 @@
-import {animationCooldown, fetchWithCsrf} from "./utils";
+import {animationCooldown, fetchWithCsrf, loadVaultKey} from "./utils";
 import {SuperAdminSetupInit} from "./modals/setup";
 import React from "react";
 import {modalContainerRef, notificationRef, ZariumRef, setSuperadminStatus} from "./App";
 import {LoadingModal} from "./UI";
 import {LoginInit} from "./modals/login";
 import {Accountbar, Groups} from "./Zarium";
+import VaultSession from "./VaultSession";
 
 export async function MainApplication() {
     modalContainerRef.current?.set(
@@ -67,6 +68,18 @@ export async function authCheck() {
 
 export async function renderApplication() {
     const res = await (await fetchWithCsrf("/api/auth/get-user-data")).json();
+    let server_status = await (await fetchWithCsrf("/api/status")).json();
+
+    if (VaultSession.getKey() == null) {
+        if (loadVaultKey() == null) {
+            await fetchWithCsrf("/api/auth/logout", {
+                method: "POST"
+            })
+            console.log("Vault key not found, redirecting to login.");
+            modalContainerRef.current?.set(<LoginInit motd={server_status.motd} version={server_status.version}/>);
+            return;
+        }
+    }
 
     ZariumRef.current?.show();
     ZariumRef.current?.getSidebarContent()?.setGroups(<Groups/>);

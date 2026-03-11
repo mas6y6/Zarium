@@ -5,7 +5,7 @@ import * as http from "node:http";
 import * as path from "node:path";
 import * as fs from "fs/promises";
 import {ZariumConfig} from "./ZariumConfig";
-import crypto from "crypto";
+import { Encryption } from "./Encryption";
 import { createLogger } from "./Logging";
 import winston from "winston";
 import * as https from "node:https";
@@ -17,6 +17,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import {User} from "./database/entities/User";
 import {handleCSRF, handleErrors} from "./utils";
+import cryptoModule from "crypto";
 
 export class ZariumServer {
     public version = "1.0.0";
@@ -34,7 +35,7 @@ export class ZariumServer {
     public motd: string = "A Zarium Server";
     public superadminKey: string = "";
 
-    public ACCESS_TOKEN_SECRET: string = crypto.randomBytes(32).toString("hex");
+    public ACCESS_TOKEN_SECRET: string = Encryption.randomBytes(32).toString("hex");
     public ACCESS_TOKEN_EXPIRATION_TIME: string = "10m";
     public REFRESH_TOKEN_EXPIRATION_TIME: string = "7d";
 
@@ -107,7 +108,7 @@ export class ZariumServer {
             let base64 = await fs.readFile(path.join(this.config.data_folder, "masterkey.key"), "utf-8");
             this.masterkey = Buffer.from(base64, "base64");
         } catch {
-            this.masterkey = crypto.randomBytes(32);
+            this.masterkey = Encryption.randomBytes(32);
             await fs.writeFile(path.join(this.config.data_folder, "masterkey.key"), this.masterkey.toString("base64"), "utf-8");
         }
 
@@ -165,24 +166,33 @@ export class ZariumServer {
             this.app.use(limiter);
         }
 
-// 2. Body parsing
+// 2. Content-Security-Policy
+        this.app.use((req, res, next) => {
+            res.setHeader(
+                "Content-Security-Policy",
+                "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval';"
+            );
+            next();
+        });
+
+// 3. Body parsing
         this.app.use(express.json());
         this.app.use(express.urlencoded({ extended: true }));
 
-// 3. Cookie & CSRF
+// 4. Cookie & CSRF
         this.app.use(cookieParser());
         this.app.use(csurf({ cookie: true }));
 
-// 4. Static files
+// 5. Static files
         this.app.use("/public", express.static(path.join(__dirname, "../client/public")));
         this.app.use("/assets", express.static(path.join(__dirname, "../client/assets")));
 
-// 5. Custom routes
+// 6. Custom routes
         require("./routes/main");
         require("./routes/superadmin");
         require("./routes/account");
 
-// 6. WebSocket upgrade handling
+// 7. WebSocket upgrade handling
         this.server.on('upgrade', (request: IncomingMessage, socket: Socket, head: Buffer) => {
             const path = new URL(request.url!, 'http://dummy').pathname;
             const handler = this.wsRouteHandlers[path];
@@ -193,10 +203,10 @@ export class ZariumServer {
             this.wss.handleUpgrade(request, socket, head, (ws) => handler(ws, request));
         });
 
-// 7. CSRF errors
+// 8. CSRF errors
         handleCSRF(this.app);
 
-// 8. 404 + 500 errors
+// 9. 404 + 500 errors
         handleErrors(this.app);
 
         if (await Database.getDataSource().getRepository(User).count() === 0) {
@@ -204,7 +214,7 @@ export class ZariumServer {
         }
 
         if (this.firstStart) {
-            this.superadminKey = crypto.randomBytes(12).toString("hex");
+            this.superadminKey = cryptoModule.randomBytes(12).toString("hex");
 
             const firstStartMessage = `
 =======================================================

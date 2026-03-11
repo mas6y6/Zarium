@@ -32,7 +32,8 @@
     "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vite-plugin-wasm": "^3.5.0"
   },
   "dependencies": {
     "@types/cookie-parser": "^1.4.10",

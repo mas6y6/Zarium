@@ -3,7 +3,7 @@ import { User } from "./User";
 import {ZariumServer} from "../../ZariumServer";
 import {UserJwtPayload} from "../../utils";
 import jwt from "jsonwebtoken";
-import argon2 from "argon2";
+import { Encryption } from "../../Encryption";
 
 @Entity("user_sessions")
 export class UserSession {
@@ -49,7 +49,8 @@ export class UserSession {
         if (this.expiresAt < new Date()) throw new Error("Session invalid. Cannot create access token.");
 
         const repository = ZariumServer.getInstance().database.dataSource.getRepository(UserSession);
-        await repository.update(this.id, {lastUsedAt: new Date()});
+        this.lastUsedAt = new Date();
+        await repository.save(this);
 
         return jwt.sign({
             userId: this.userId,
@@ -64,17 +65,18 @@ export class UserSession {
     }
 
     async checkSession(token: string) {
-        return argon2.verify(this.refreshTokenHash, token);
+        return Encryption.verifyPassword(this.refreshTokenHash, token);
     }
 
     async checkRefreshToken(refreshToken: string) {
         if (this.revoked) return false;
         if (this.expiresAt < new Date()) return false;
-        return await argon2.verify(this.refreshTokenHash, refreshToken);
+        return await Encryption.verifyPassword(this.refreshTokenHash, refreshToken);
     }
 
     async revoke() {
         this.revoked = true;
-        await ZariumServer.getInstance().database.dataSource.getRepository(UserSession).update(this.id, {revoked: true, revokedAt: new Date()});
+        this.revokedAt = new Date();
+        await ZariumServer.getInstance().database.dataSource.getRepository(UserSession).save(this);
     }
 }

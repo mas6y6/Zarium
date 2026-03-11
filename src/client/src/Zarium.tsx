@@ -1,8 +1,8 @@
-import React, {JSX, useImperativeHandle, useState, useRef} from "react";
+import React, {JSX, useImperativeHandle, useState} from "react";
 import {Button} from "./UI";
-import {AdminIcon, ArrowLeft, People, Plus, Search, Settings, User} from "./Icons";
-import profileImg from "../../server/assets/img/profile.png";
-import {fetchWithCsrf} from "./utils";
+import {AdminIcon, ArrowLeft, People, Settings} from "./Icons";
+import {modalContainerRef} from "./App";
+import {SettingsModal} from "./modals/settings";
 
 export interface ZariumProps {
     superadmin?: boolean;
@@ -30,7 +30,7 @@ export const Zarium = React.forwardRef<ZariumHandle, ZariumProps>((props, ref) =
 
     return (
         <div className={`Zarium ${visible ? 'show' : ''}`}>
-            <Topbar>
+            <Topbar className={sidebarOpen ? 'sidebar-open' : ''}>
                 <Button
                     className={`TopbarToggle ${sidebarOpen ? 'open' : ''}`}
                     onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -41,7 +41,7 @@ export const Zarium = React.forwardRef<ZariumHandle, ZariumProps>((props, ref) =
                 <Button color="secondary">
                     <People/>
                 </Button>
-                <Button color="secondary">
+                <Button color="secondary" onClick={() => modalContainerRef.current?.set(<SettingsModal/>)}>
                     <Settings/>
                 </Button>
                 {props.superadmin && (
@@ -117,7 +117,11 @@ export const MainContent = React.forwardRef<MainContentHandle, MainContentProps>
     )
 });
 
-export function Topbar(props: React.PropsWithChildren) { return <div className="Topbar">{props.children}</div> }
+export interface TopbarProps {
+    className?: string;
+}
+
+export function Topbar(props: React.PropsWithChildren<TopbarProps>) { return <div className={`Topbar ${props.className ?? ''}`}>{props.children}</div> }
 
 export interface AccountbarProps {
     username: string;

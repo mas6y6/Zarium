@@ -11,6 +11,7 @@ export class ZariumConfig {
     // Folders
     public data_folder: string = "./data";
     public logs_folder: string = "./logs";
+    public require_password_on_reload: boolean = false;
 
     // Logging options
     public logging_console: boolean = true;
@@ -60,6 +61,7 @@ export class ZariumConfig {
         this.host = getPath<string>("server.host", this.host);
 
         this.data_folder = getPath<string>("zarium.data_folder", this.data_folder);
+        this.require_password_on_reload = getPath<boolean>("zarium.require_password_on_reload", this.require_password_on_reload);
 
         this.logs_folder = getPath<string>("logging.logs_folder", this.logs_folder);
         this.logging_console = getPath<boolean>("logging.console", this.logging_console);

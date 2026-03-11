@@ -1,9 +1,8 @@
 import React, { useRef } from "react";
 import { Button, Entry, LoadingModal, Modal, ModalHandle, PasswordEntry } from "../UI";
-import { animationCooldown, fetchWithCsrf } from "../utils";
+import {animationCooldown, fetchWithCsrf, obtainVaultKey} from "../utils";
 import { modalContainerRef, notificationRef, setSuperadminStatus } from "../App";
 import { authCheck, renderApplication } from "../MainApplication";
-import {SuperAdminSetupInit} from "./setup";
 
 interface LoginModalProps {
     motd: string;
@@ -80,10 +79,13 @@ export function LoginInit(props: LoginModalProps) {
             <p>{props.motd}</p>
             <p>Please enter your username to continue.</p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
+            <form
+                onSubmit={(e) => { e.preventDefault(); onContinue(); }}
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}
+            >
                 <Entry ref={usernameEntry} placeholder="Username" />
-                <Button onClick={onContinue}>Continue</Button>
-            </div>
+                <Button type="submit">Continue</Button>
+            </form>
 
             <p className="subtext" style={{ marginTop: '0.5rem' }}>Zarium Version: {props.version}</p>
         </Modal>
@@ -116,7 +118,7 @@ export function LoginPassword(props: { response: AuthMethodsResponse }) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     username: props.response.username,
-                    password
+                    password: password
                 })
             });
 
@@ -136,6 +138,10 @@ export function LoginPassword(props: { response: AuthMethodsResponse }) {
                 setSuperadminStatus(auth.superadmin || false);
             }
 
+            const data = await res.json();
+
+            await obtainVaultKey(password,data);
+
             modalContainerRef?.current?.close();
             await renderApplication();
         } catch (e) {
@@ -154,10 +160,14 @@ export function LoginPassword(props: { response: AuthMethodsResponse }) {
             <p>Please enter your password to continue.</p>
             <p>Account username: {props.response.username}</p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
+            <form
+                onSubmit={(e) => { e.preventDefault(); onSignIn(); }}
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}
+            >
                 <PasswordEntry ref={passwordEntry} placeholder="Password" />
-                <Button onClick={onSignIn} color="primary">Sign in</Button>
+                <Button type="submit" color="primary">Sign in</Button>
                 <Button
+                    type="button"
                     onClick={async () => {
                         modal.current?.hideModal();
                         await animationCooldown();
@@ -167,7 +177,7 @@ export function LoginPassword(props: { response: AuthMethodsResponse }) {
                 >
                     Back
                 </Button>
-            </div>
+            </form>
         </Modal>
     );
 }
@@ -269,12 +279,16 @@ export function SetupInit(props: { response: AuthMethodsResponse }) {
                 <b>Important:</b> If you forget your password, your account cannot be recovered. Please store it safely.
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
+            <form
+                onSubmit={(e) => { e.preventDefault(); signIn(); }}
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}
+            >
                 <PasswordEntry ref={passwordEntry} placeholder="Temporary Password" />
                 <PasswordEntry ref={newPasswordEntry} placeholder="New Password" />
                 <PasswordEntry ref={reEnterPasswordEntry} placeholder="Re-enter New Password" />
-                <Button onClick={signIn} color="primary">Sign in</Button>
+                <Button type="submit" color="primary">Sign in</Button>
                 <Button
+                    type="button"
                     onClick={async () => {
                         modal.current?.hideModal();
                         await animationCooldown();
@@ -286,7 +300,7 @@ export function SetupInit(props: { response: AuthMethodsResponse }) {
                 >
                     Back
                 </Button>
-            </div>
+            </form>
         </Modal>
     );
 }

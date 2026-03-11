@@ -130,6 +130,16 @@ html,body {
   @include media-breakpoint-down(md) {
     margin: 1rem 0 1rem 0;
     width: 100%;
+
+    .UIButton:not(.TopbarToggle) {
+      display: none;
+    }
+
+    &.sidebar-open {
+      .UIButton:not(.TopbarToggle) {
+        display: flex;
+      }
+    }
   }
 }
 

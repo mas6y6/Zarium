@@ -105,3 +105,9 @@
   background-repeat: no-repeat;
   transition: all 0.3s ease;
 }
+
+.mobile-only {
+  @media (min-width: 768px) {
+    display: none !important;
+  }
+}

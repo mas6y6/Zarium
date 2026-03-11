@@ -12,6 +12,7 @@ safeRoute(server.app, '/api/status', 'get', async (req: SafeRequest,res) => {
         version: server.version,
         motd: server.motd,
         firstStart: server.firstStart,
-        ssl_enabled: server.config.ssl_enabled
+        ssl_enabled: server.config.ssl_enabled,
+        require_password_on_reload: server.config.require_password_on_reload,
     })
 });

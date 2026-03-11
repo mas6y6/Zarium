@@ -13,6 +13,7 @@ server:
 
 zarium:
   data_folder: ./data
+  require_password_on_reload: false
 
 logging:
   logs_folder: ./logs
