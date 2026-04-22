@@ -63,6 +63,7 @@ import { useAppStore } from './store';
 import Button from './components/Button.vue';
 import { AdminIcon, ArrowLeft, People, Settings as SettingsIcon } from './Icons';
 import { SettingsModal } from './modals/SettingsModal.vue';
+import ZariumDefaultMainContent from "@/ZariumDefaultMainContent.vue";
 
 defineProps<{
   superadmin?: boolean;
@@ -74,7 +75,7 @@ const activeTab = ref(-1);
 const tabs = ref<{ id: string, name: string, content: any }[]>([]);
 
 function openSettings() {
-  store.setModal(() => h(SettingsModal));
+  store.setModal(SettingsModal)
 }
 
 function closeTab(index: number) {
@@ -132,8 +133,4 @@ export const Accountbar = defineComponent({
 
 export const Groups = () => h('div', { class: 'Groups' });
 
-const ZariumDefaultMainContent = () => [
-  h('h1', 'Welcome to Zarium'),
-  h('p', 'lol')
-];
 </script>

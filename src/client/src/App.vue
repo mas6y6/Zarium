@@ -32,7 +32,7 @@ import { MainApplication } from './MainApplication';
 import ZariumComponent from './Zarium.vue';
 
 const store = useAppStore();
-const zariumRef = ref(null);
+const zariumRef = ref<InstanceType<typeof ZariumComponent> | null>(null);
 
 const backgroundStyle = computed(() => ({
   backgroundColor: store.background.color ?? 'var(--default-app-background)',
